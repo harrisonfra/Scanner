@@ -1,41 +1,62 @@
-const CACHE_NAME = "vin-viewer-cache-v1";
-const urlsToCache = [
+const CACHE_NAME = "vin-viewer-cache-v2";
+const STATIC_ASSETS = [
     "./",
     "./index.html",
     "./styles.css",
     "./script.js",
-    "./all_data.json"
+    "./manifest.json",
+    "./icons/icon-192.png",
+    "./icons/icon-512.png"
 ];
 
-// Install service worker and cache resources
-self.addEventListener("install", (event) => {
+// Install: cache static assets
+self.addEventListener("install", event => {
     event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll(urlsToCache);
-        })
+        caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
     );
 });
 
-// Activate and clean old caches
-self.addEventListener("activate", (event) => {
+// Activate: clean up old caches
+self.addEventListener("activate", event => {
     event.waitUntil(
-        caches.keys().then((keys) => {
-            return Promise.all(
-                keys.map((key) => {
-                    if (key !== CACHE_NAME) {
-                        return caches.delete(key);
-                    }
+        caches.keys().then(keys =>
+            Promise.all(
+                keys
+                    .filter(key => key !== CACHE_NAME)
+                    .map(key => caches.delete(key))
+            )
+        )
+    );
+});
+
+// Fetch: dynamic caching
+self.addEventListener("fetch", event => {
+    const request = event.request;
+
+    // Network-first for JSON (dynamic content)
+    if (request.url.endsWith("all_data.json")) {
+        event.respondWith(
+            fetch(request)
+                .then(response => {
+                    return caches.open(CACHE_NAME).then(cache => {
+                        cache.put(request, response.clone());
+                        return response;
+                    });
                 })
-            );
-        })
-    );
-});
+                .catch(() => caches.match(request))
+        );
+        return;
+    }
 
-// Intercept fetch requests
-self.addEventListener("fetch", (event) => {
+    // Cache-first for other assets
     event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
+        caches.match(request).then(cachedResponse => {
+            return cachedResponse || fetch(request).then(response => {
+                return caches.open(CACHE_NAME).then(cache => {
+                    cache.put(request, response.clone());
+                    return response;
+                });
+            });
         })
     );
 });

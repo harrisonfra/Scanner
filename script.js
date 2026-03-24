@@ -199,41 +199,41 @@ function showDetails(item) {
 function closeDetails() {
     document.getElementById("details").classList.add("hidden");
 }
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-        navigator.serviceWorker
-            .register("./service-worker.js")
-            .then((reg) => console.log("Service worker registered.", reg))
-            .catch((err) => console.error("Service worker failed:", err));
-    });
-}
+
 
 let deferredPrompt;
-window.addEventListener('beforeinstallprompt', (e) => {
+window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
-    // Show your install button
+
     const btn = document.createElement("button");
     btn.textContent = "Install App";
-    btn.style.position = "fixed";
-    btn.style.bottom = "20px";
-    btn.style.right = "20px";
-    btn.style.padding = "10px 15px";
-    btn.style.background = "black";
-    btn.style.color = "white";
-    btn.style.border = "none";
-    btn.style.borderRadius = "5px";
+    Object.assign(btn.style, {
+        position: "fixed",
+        bottom: "20px",
+        right: "20px",
+        padding: "10px 15px",
+        background: "black",
+        color: "white",
+        border: "none",
+        borderRadius: "5px",
+        zIndex: "1000"
+    });
     document.body.appendChild(btn);
 
     btn.addEventListener("click", async () => {
         deferredPrompt.prompt();
         const choiceResult = await deferredPrompt.userChoice;
-        if (choiceResult.outcome === "accepted") {
-            console.log("User accepted the install");
-        } else {
-            console.log("User dismissed the install");
-        }
         deferredPrompt = null;
         btn.remove();
     });
 });
+
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker
+            .register("./service-worker.js")
+            .then(reg => console.log("Service worker registered.", reg))
+            .catch(err => console.error("Service worker registration failed:", err));
+    });
+}
