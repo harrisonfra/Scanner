@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VIN Data Viewer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <h1>VIN Data Viewer</h1>
+
+    <input type="text" id="search" placeholder="Search make or model...">
+
+    <table id="data-table">
+        <thead>
+            <tr>
+                <th>VIN</th>
+                <th>Year</th>
+                <th>Make</th>
+                <th>Model</th>
+                <th>Avg Price</th>
+                <th>Sales</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <!-- Details panel -->
+    <div id="details" class="hidden">
+        <h2>Vehicle Details</h2>
+        <p><strong>VIN:</strong> <span id="d-vin"></span></p>
+        <p><strong>Query:</strong> <span id="d-query"></span></p>
+        <p><strong>Year:</strong> <span id="d-year"></span></p>
+        <p><strong>Make:</strong> <span id="d-make"></span></p>
+        <p><strong>Model:</strong> <span id="d-model"></span></p>
+        <p><strong>Average Price:</strong> $<span id="d-avg"></span></p>
+        <p><strong>Median Price:</strong> $<span id="d-med"></span></p>
+        <p><strong>Sales Count:</strong> <span id="d-sales"></span></p>
+        <button onclick="closeDetails()">Close</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
