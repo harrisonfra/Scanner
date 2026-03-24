@@ -66,7 +66,7 @@ h1 {
 }
 
 /* checked state */
-#item-filters input:checked + span {
+#item-filters input:checked+span {
     background: black;
     color: white;
     border-color: black;
@@ -103,6 +103,7 @@ h1 {
         padding: 5px 10px;
     }
 }
+
 /* ===== TABLE CONTAINER ===== */
 .table-container {
     overflow-x: auto;
@@ -118,7 +119,8 @@ table {
     min-width: 700px;
 }
 
-th, td {
+th,
+td {
     padding: 8px;
     border-bottom: 1px solid #ddd;
     text-align: left;
@@ -172,7 +174,7 @@ th .arrow {
     padding: 15px;
     max-height: 65%;
     overflow-y: auto;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
     font-size: 14px;
 }
 
@@ -181,7 +183,9 @@ th .arrow {
 }
 
 /* ===== MOBILE OPTIMIZATION ===== */
+/* ===== CARD STYLE FOR SMALL SCREENS ===== */
 @media (max-width: 600px) {
+
     h1 {
         font-size: 20px;
     }
@@ -191,31 +195,16 @@ th .arrow {
         padding: 5px 8px;
     }
 
-    th, td {
-        padding: 6px;
-        font-size: 12px;
-    }
-
-    .ebay-btn {
-        font-size: 10px;
-        padding: 4px 6px;
-    }
-
-    /* Allow table to shrink gracefully */
-    .table-container {
-        padding: 0;
-    }
-}
-/* ===== CARD STYLE FOR SMALL SCREENS ===== */
-@media (max-width: 600px) {
-
     /* Hide table headers */
     table thead {
         display: none;
     }
 
     /* Each row becomes a card */
-    table, table tbody, table tr, table td {
+    table,
+    table tbody,
+    table tr,
+    table td {
         display: block;
         width: 100%;
     }
@@ -225,7 +214,7 @@ th .arrow {
         background: white;
         border-radius: 8px;
         padding: 10px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     }
 
     table td {
@@ -250,4 +239,15 @@ th .arrow {
         font-size: 12px;
         margin-top: 6px;
     }
+      .table-container {
+        padding: 0;
+        overflow-x: visible; /* 🔥 THIS FIXES IT */
+    }
+       table td {
+        white-space: normal !important;
+    }
+      table {
+        min-width: 0;
+    }
+
 }
