@@ -1,4 +1,4 @@
-/* ===== GENERAL ===== */
+/* ===== BASE ===== */
 body {
     font-family: Arial, sans-serif;
     margin: 0;
@@ -7,24 +7,23 @@ body {
 }
 
 h1 {
+    text-align: center;
     font-size: 22px;
     margin-bottom: 10px;
-    text-align: center;
 }
 
 /* ===== SEARCH ===== */
 #search {
     width: 100%;
     padding: 10px;
-    margin-bottom: 10px;
     font-size: 16px;
-    box-sizing: border-box;
+    margin-bottom: 10px;
     border-radius: 6px;
     border: 1px solid #ccc;
+    box-sizing: border-box;
 }
 
 /* ===== FILTERS ===== */
-/* ===== FILTER SECTION ===== */
 #filters {
     background: white;
     padding: 12px;
@@ -32,7 +31,6 @@ h1 {
     margin-bottom: 10px;
 }
 
-/* container */
 #item-filters {
     display: flex;
     flex-wrap: wrap;
@@ -40,100 +38,59 @@ h1 {
     margin-top: 8px;
 }
 
-/* hide default checkbox */
 #item-filters input {
     display: none;
 }
 
-/* pill style */
 #item-filters label {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    background: #e0e0e0;
     padding: 6px 12px;
     border-radius: 20px;
-    background: #e0e0e0;
     font-size: 13px;
     cursor: pointer;
-    user-select: none;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
+    transition: 0.2s;
 }
 
-/* hover */
+#item-filters input:checked + span {
+    background: black;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 20px;
+}
+
 #item-filters label:hover {
     background: #d5d5d5;
 }
 
-/* checked state */
-#item-filters input:checked+span {
-    background: black;
-    color: white;
-    border-color: black;
-}
-
-/* fix structure (we'll add span in JS) */
-#item-filters label span {
-    display: inline-block;
-    padding: 2px 4px;
-    border-radius: 20px;
-}
-
-/* clear button */
 #clear-filters {
     margin-top: 10px;
-    padding: 10px;
     width: 100%;
+    padding: 10px;
     border: none;
     background: black;
     color: white;
     border-radius: 8px;
-    font-size: 14px;
     cursor: pointer;
 }
 
-/* mobile tweaks */
-@media (max-width: 600px) {
-    #item-filters {
-        gap: 6px;
-    }
-
-    #item-filters label {
-        font-size: 12px;
-        padding: 5px 10px;
-    }
-}
-
-/* ===== TABLE CONTAINER ===== */
+/* ===== TABLE (DESKTOP) ===== */
 .table-container {
-    overflow-x: auto;
     background: white;
     border-radius: 8px;
-    padding: 5px;
+    overflow-x: auto;
 }
 
-/* ===== TABLE ===== */
 table {
     width: 100%;
     border-collapse: collapse;
     min-width: 700px;
 }
 
-th,
-td {
-    padding: 8px;
+th, td {
+    padding: 10px;
     border-bottom: 1px solid #ddd;
     text-align: left;
-    font-size: 13px;
-    white-space: nowrap;
-}
-
-tr:nth-child(even) {
-    background: #fafafa;
-}
-
-tr:hover {
-    background: #f0f0f0;
+    font-size: 14px;
 }
 
 th {
@@ -142,23 +99,20 @@ th {
     background: black;
     color: white;
     cursor: pointer;
-    z-index: 2;
 }
 
-/* ===== SORT ARROWS ===== */
-th .arrow {
-    margin-left: 5px;
-    font-size: 10px;
+tr:hover {
+    background: #f0f0f0;
 }
 
-/* ===== EBAY BUTTON ===== */
+/* ===== BUTTON ===== */
 .ebay-btn {
-    padding: 5px 8px;
-    font-size: 11px;
-    border: none;
     background: #3665f3;
     color: white;
+    border: none;
+    padding: 6px 8px;
     border-radius: 4px;
+    font-size: 12px;
     cursor: pointer;
 }
 
@@ -169,85 +123,92 @@ th .arrow {
     left: 0;
     right: 0;
     background: white;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
+    border-radius: 12px 12px 0 0;
     padding: 15px;
     max-height: 65%;
     overflow-y: auto;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
-    font-size: 14px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
 }
 
 .hidden {
     display: none;
 }
 
-/* ===== MOBILE OPTIMIZATION ===== */
-/* ===== CARD STYLE FOR SMALL SCREENS ===== */
+/* ===================================================== */
+/* ===== MOBILE: TRUE CARD LAYOUT (NO TABLE STYLES) ===== */
+/* ===================================================== */
+
 @media (max-width: 600px) {
 
+    /* kill table behavior completely */
+    table {
+        min-width: 0;
+    }
+
+    thead {
+        display: none;
+    }
+
+    tbody {
+        display: block;
+    }
+
+    tr {
+        display: block;
+        background: white;
+        margin-bottom: 10px;
+        padding: 12px;
+        border-radius: 10px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0;
+        border: none;
+        font-size: 13px;
+    }
+
+    /* label (left side) */
+    td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        color: #333;
+        margin-right: 10px;
+    }
+
+    /* value (right side) */
+    td span {
+        text-align: right;
+    }
+
+    /* fix long text */
+    td {
+        word-break: break-word;
+    }
+
+    /* button full width */
+    .ebay-btn {
+        width: 100%;
+        margin-top: 8px;
+        padding: 8px;
+        font-size: 13px;
+    }
+
+    /* IMPORTANT: remove horizontal scroll conflict */
+    .table-container {
+        overflow: visible;
+    }
+
+    /* tighter UI */
     h1 {
         font-size: 20px;
     }
 
     #item-filters label {
         font-size: 12px;
-        padding: 5px 8px;
+        padding: 5px 10px;
     }
-
-    /* Hide table headers */
-    table thead {
-        display: none;
-    }
-
-    /* Each row becomes a card */
-    table,
-    table tbody,
-    table tr,
-    table td {
-        display: block;
-        width: 100%;
-    }
-
-    table tr {
-        margin-bottom: 10px;
-        background: white;
-        border-radius: 8px;
-        padding: 10px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    }
-
-    table td {
-        text-align: left;
-        padding: 4px 0;
-        border: none;
-        font-size: 13px;
-        white-space: normal;
-    }
-
-    /* Add label before each td */
-    table td::before {
-        content: attr(data-label);
-        font-weight: bold;
-        display: inline-block;
-        width: 110px;
-    }
-
-    .ebay-btn {
-        width: 100%;
-        padding: 6px;
-        font-size: 12px;
-        margin-top: 6px;
-    }
-      .table-container {
-        padding: 0;
-        overflow-x: visible; /* 🔥 THIS FIXES IT */
-    }
-       table td {
-        white-space: normal !important;
-    }
-      table {
-        min-width: 0;
-    }
-
 }

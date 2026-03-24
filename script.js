@@ -144,14 +144,14 @@ function displayData(data) {
         const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&rt=nc&LH_ItemCondition=4`;
 
         row.innerHTML = `
-    <td data-label="VIN">${item.VIN}</td>
-    <td data-label="Year">${item.Year}</td>
-    <td data-label="Make">${item.Make}</td>
-    <td data-label="Model">${item.Model || "N/A"}</td>
-    <td data-label="Avg Price">$${item["Average Price"]}</td>
-    <td data-label="Median Price">$${item["Median Price"]}</td>
-    <td data-label="Item">${item._item}</td>
-    <td data-label="Sales">${item["Number of Sales"]}</td>
+    <td data-label="VIN"><span>${item.VIN}</span></td>
+    <td data-label="Year"><span>${item.Year}</span></td>
+    <td data-label="Make"><span>${item.Make}</span></td>
+    <td data-label="Model"><span>${item.Model || "N/A"}</span></td>
+    <td data-label="Avg Price"><span>$${item["Average Price"]}</span></td>
+    <td data-label="Median Price"><span>$${item["Median Price"]}</span></td>
+    <td data-label="Item"><span>${item._item}</span></td>
+    <td data-label="Sales"><span>${item["Number of Sales"]}</span></td>
     <td data-label="eBay"><button class="ebay-btn">Search</button></td>
 `;
 
