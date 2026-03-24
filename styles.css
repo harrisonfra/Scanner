@@ -51,7 +51,7 @@ h1 {
     transition: 0.2s;
 }
 
-#item-filters input:checked + span {
+#item-filters input:checked+span {
     background: black;
     color: white;
     padding: 4px 8px;
@@ -86,7 +86,8 @@ table {
     min-width: 700px;
 }
 
-th, td {
+th,
+td {
     padding: 10px;
     border-bottom: 1px solid #ddd;
     text-align: left;
@@ -127,11 +128,18 @@ tr:hover {
     padding: 15px;
     max-height: 65%;
     overflow-y: auto;
-    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
 }
 
 .hidden {
     display: none;
+}
+
+#mobile-sort {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
 }
 
 /* ===================================================== */
@@ -139,6 +147,10 @@ tr:hover {
 /* ===================================================== */
 
 @media (max-width: 768px) {
+
+    #mobile-sort {
+        display: none;
+    }
 
     /* kill table behavior completely */
     table {
@@ -159,7 +171,7 @@ tr:hover {
         margin-bottom: 10px;
         padding: 12px;
         border-radius: 10px;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
     }
 
     td {

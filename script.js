@@ -60,11 +60,14 @@ function applyFilters() {
 
     filteredData = allData.filter(item => {
 
-        const matchesSearch =
-            item.Make.toLowerCase().includes(searchValue) ||
-            item.Model.toLowerCase().includes(searchValue) ||
-            String(item.Year).includes(searchValue) ||
-            item._item.toLowerCase().includes(searchValue);
+        const words = searchValue.split(" ").filter(Boolean);
+
+        const matchesSearch = words.every(word =>
+            item.Make.toLowerCase().includes(word) ||
+            item.Model.toLowerCase().includes(word) ||
+            String(item.Year).includes(word) ||
+            item._item.toLowerCase().includes(word)
+        );
 
         const matchesItem =
             selectedItems.size === 0 || selectedItems.has(item._item);
@@ -201,6 +204,77 @@ function showDetails(item) {
 function closeDetails() {
     document.getElementById("details").classList.add("hidden");
 }
+
+document.getElementById("scan-vin-btn").addEventListener("click", () => {
+    const readerDiv = document.getElementById("reader");
+    readerDiv.style.display = "block";
+
+    const html5QrCode = new Html5Qrcode("reader");
+
+    html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        async (decodedText) => {
+            html5QrCode.stop();
+            readerDiv.style.display = "none";
+
+            handleVIN(decodedText);
+        }
+    );
+});
+
+async function handleVIN(vin) {
+    vin = vin.trim().toUpperCase();
+
+    if (vin.length !== 17) {
+        alert("Invalid VIN");
+        return;
+    }
+
+    try {
+        const res = await fetch(
+            `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${vin}?format=json`
+        );
+        const data = await res.json();
+        const vehicle = data.Results[0];
+
+        const year = vehicle.ModelYear;
+        const make = vehicle.Make;
+        const model = vehicle.Model;
+
+        if (!year || !make || !model) {
+            alert("Could not decode VIN");
+            return;
+        }
+
+        // 🔥 Auto search using decoded info
+        document.getElementById("search").value = `${make} ${model} ${year}`;
+        applyFilters();
+
+        if (filteredData.length === 0) {
+            alert("No matching results found for this VIN.");
+        }
+
+    } catch (err) {
+        console.error(err);
+        alert("Error decoding VIN");
+    }
+}
+
+document.getElementById("mobile-sort").addEventListener("change", (e) => {
+    const key = e.target.value;
+
+    if (!key) return;
+
+    if (currentSort.key === key) {
+        currentSort.asc = !currentSort.asc;
+    } else {
+        currentSort.key = key;
+        currentSort.asc = false;
+    }
+
+    applySort();
+});
 
 
 let deferredPrompt;
