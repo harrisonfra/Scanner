@@ -5,8 +5,8 @@ const STATIC_ASSETS = [
     "./styles.css",
     "./script.js",
     "./manifest.json",
-    "./icons/icon-192.png",
-    "./icons/icon-512.png"
+    "./UAR.png",
+    // "./icons/icon-512.png"
 ];
 
 // Install: cache static assets
