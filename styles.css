@@ -149,7 +149,10 @@ tr:hover {
 @media (max-width: 768px) {
 
     #mobile-sort {
-        display: none;
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 6px;
     }
 
     /* kill table behavior completely */
