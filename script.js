@@ -34,10 +34,12 @@ function createItemFilters() {
 
         label.innerHTML = `
             <input type="checkbox" value="${item}">
-            ${item}
+            <span>${item}</span>
         `;
 
-        label.querySelector("input").addEventListener("change", (e) => {
+        const checkbox = label.querySelector("input");
+
+        checkbox.addEventListener("change", (e) => {
             if (e.target.checked) {
                 selectedItems.add(item);
             } else {
@@ -142,16 +144,16 @@ function displayData(data) {
         const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&rt=nc&LH_ItemCondition=4`;
 
         row.innerHTML = `
-            <td>${item.VIN}</td>
-            <td>${item.Year}</td>
-            <td>${item.Make}</td>
-            <td>${item.Model || "N/A"}</td>
-            <td>$${item["Average Price"]}</td>
-            <td>$${item["Median Price"]}</td>
-            <td>${item._item}</td>
-            <td>${item["Number of Sales"]}</td>
-            <td><button class="ebay-btn">Search</button></td>
-        `;
+    <td data-label="VIN">${item.VIN}</td>
+    <td data-label="Year">${item.Year}</td>
+    <td data-label="Make">${item.Make}</td>
+    <td data-label="Model">${item.Model || "N/A"}</td>
+    <td data-label="Avg Price">$${item["Average Price"]}</td>
+    <td data-label="Median Price">$${item["Median Price"]}</td>
+    <td data-label="Item">${item._item}</td>
+    <td data-label="Sales">${item["Number of Sales"]}</td>
+    <td data-label="eBay"><button class="ebay-btn">Search</button></td>
+`;
 
         row.addEventListener("click", (e) => {
             if (!e.target.classList.contains("ebay-btn")) {

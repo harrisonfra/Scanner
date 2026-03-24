@@ -24,47 +24,85 @@ h1 {
 }
 
 /* ===== FILTERS ===== */
+/* ===== FILTER SECTION ===== */
 #filters {
     background: white;
-    padding: 10px;
-    border-radius: 8px;
+    padding: 12px;
+    border-radius: 10px;
     margin-bottom: 10px;
 }
 
+/* container */
 #item-filters {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 6px;
+    gap: 8px;
+    margin-top: 8px;
 }
 
+/* hide default checkbox */
+#item-filters input {
+    display: none;
+}
+
+/* pill style */
 #item-filters label {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 5px;
-    background: #e0e0e0;
-    padding: 6px 10px;
+    justify-content: center;
+    padding: 6px 12px;
     border-radius: 20px;
+    background: #e0e0e0;
     font-size: 13px;
     cursor: pointer;
+    user-select: none;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
 }
 
-#item-filters input {
-    accent-color: black;
+/* hover */
+#item-filters label:hover {
+    background: #d5d5d5;
 }
 
+/* checked state */
+#item-filters input:checked + span {
+    background: black;
+    color: white;
+    border-color: black;
+}
+
+/* fix structure (we'll add span in JS) */
+#item-filters label span {
+    display: inline-block;
+    padding: 2px 4px;
+    border-radius: 20px;
+}
+
+/* clear button */
 #clear-filters {
-    margin-top: 8px;
-    padding: 8px;
+    margin-top: 10px;
+    padding: 10px;
     width: 100%;
     border: none;
     background: black;
     color: white;
-    border-radius: 6px;
+    border-radius: 8px;
     font-size: 14px;
     cursor: pointer;
 }
 
+/* mobile tweaks */
+@media (max-width: 600px) {
+    #item-filters {
+        gap: 6px;
+    }
+
+    #item-filters label {
+        font-size: 12px;
+        padding: 5px 10px;
+    }
+}
 /* ===== TABLE CONTAINER ===== */
 .table-container {
     overflow-x: auto;
@@ -166,5 +204,50 @@ th .arrow {
     /* Allow table to shrink gracefully */
     .table-container {
         padding: 0;
+    }
+}
+/* ===== CARD STYLE FOR SMALL SCREENS ===== */
+@media (max-width: 600px) {
+
+    /* Hide table headers */
+    table thead {
+        display: none;
+    }
+
+    /* Each row becomes a card */
+    table, table tbody, table tr, table td {
+        display: block;
+        width: 100%;
+    }
+
+    table tr {
+        margin-bottom: 10px;
+        background: white;
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    table td {
+        text-align: left;
+        padding: 4px 0;
+        border: none;
+        font-size: 13px;
+        white-space: normal;
+    }
+
+    /* Add label before each td */
+    table td::before {
+        content: attr(data-label);
+        font-weight: bold;
+        display: inline-block;
+        width: 110px;
+    }
+
+    .ebay-btn {
+        width: 100%;
+        padding: 6px;
+        font-size: 12px;
+        margin-top: 6px;
     }
 }
