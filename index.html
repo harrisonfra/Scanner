@@ -1,25 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>VIN Data Viewer</title>
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#000000">
 </head>
+
 <body>
 
     <h1>VIN Data Viewer</h1>
 
     <input type="text" id="search" placeholder="Search make or model...">
 
+    <div id="filters">
+        <strong>Filter by Item:</strong>
+        <div id="item-filters"></div>
+        <button id="clear-filters">Clear Filters</button>
+    </div>
+
     <table id="data-table">
         <thead>
             <tr>
-                <th>VIN</th>
-                <th>Year</th>
-                <th>Make</th>
-                <th>Model</th>
-                <th>Avg Price</th>
-                <th>Sales</th>
+                <th data-sort="VIN">VIN</th>
+                <th data-sort="Year">Year</th>
+                <th data-sort="Make">Make</th>
+                <th data-sort="Model">Model</th>
+                <th data-sort="Average Price">Avg Price</th>
+                <th data-sort="Median Price">Median Price</th>
+                <th data-sort="_item">Item</th>
+                <th data-sort="Number of Sales">Sales</th>
+                <th>eBay</th>
             </tr>
         </thead>
         <tbody></tbody>
@@ -41,4 +54,5 @@
 
     <script src="script.js"></script>
 </body>
+
 </html>

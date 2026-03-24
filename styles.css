@@ -1,55 +1,151 @@
+/* GENERAL */
 body {
     font-family: Arial, sans-serif;
-    padding: 20px;
+    margin: 0;
+    padding: 15px;
+    background: #f5f5f5;
 }
 
 h1 {
+    font-size: 20px;
     margin-bottom: 10px;
 }
 
-input {
-    padding: 8px;
-    width: 300px;
-    margin-bottom: 15px;
+/* SEARCH */
+#search {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 10px;
+    font-size: 16px;
 }
 
+/* FILTER SECTION */
+#filters {
+    background: white;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+#item-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+/* checkbox pills */
+#item-filters label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: #e0e0e0;
+    padding: 6px 10px;
+    border-radius: 20px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+#item-filters input {
+    accent-color: black;
+}
+
+/* clear button */
+#clear-filters {
+    margin-top: 8px;
+    padding: 8px;
+    width: 100%;
+    border: none;
+    background: black;
+    color: white;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+/* TABLE CONTAINER (important for sticky headers) */
+.table-container {
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+}
+
+/* TABLE */
 table {
     width: 100%;
     border-collapse: collapse;
+    min-width: 700px;
 }
 
 th, td {
     padding: 10px;
-    border: 1px solid #ccc;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+    font-size: 14px;
 }
 
+/* STICKY HEADERS */
 th {
-    background-color: #000;
-    color: #fff;
-}
-
-tr:hover {
-    background-color: #f2f2f2;
+    position: sticky;
+    top: 0;
+    background: black;
+    color: white;
     cursor: pointer;
+    z-index: 2;
 }
 
-/* Details panel */
+/* SORT ICON */
+th .arrow {
+    margin-left: 5px;
+    font-size: 10px;
+}
+
+/* ROWS */
+tr:hover {
+    background: #f0f0f0;
+}
+
+/* EBAY BUTTON */
+.ebay-btn {
+    padding: 6px 8px;
+    font-size: 12px;
+    border: none;
+    background: #3665f3;
+    color: white;
+    border-radius: 4px;
+}
+
+/* DETAILS PANEL (mobile-friendly bottom sheet) */
 #details {
     position: fixed;
-    right: 20px;
-    top: 20px;
-    width: 300px;
+    bottom: 0;
+    left: 0;
+    right: 0;
     background: white;
-    border: 2px solid black;
+    border-top-left-radius: 12px;
+    border-top-right-radius: 12px;
     padding: 15px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+    max-height: 60%;
+    overflow-y: auto;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
 }
 
 .hidden {
     display: none;
 }
 
-button {
-    margin-top: 10px;
-    padding: 8px 12px;
+/* MOBILE OPTIMIZATION */
+@media (max-width: 600px) {
+    h1 {
+        font-size: 18px;
+    }
+
+    th, td {
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    .ebay-btn {
+        font-size: 11px;
+        padding: 5px;
+    }
 }

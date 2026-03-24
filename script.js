@@ -1,13 +1,136 @@
 let allData = [];
+let filteredData = [];
+let currentSort = { key: null, asc: false }; // 🔥 start HIGH → LOW
+let selectedItems = new Set();
 
+//LOAD + FIX JSON
 fetch("all_data.json")
-    .then(res => res.json())
-    .then(data => {
-        allData = data;
-        displayData(data);
+    .then(res => res.text())
+    .then(text => {
+        const fixedText = text.replace(/NaN/g, "null");
+        const data = JSON.parse(fixedText);
+
+        allData = data.map(item => ({
+            ...item,
+            Make: item.Make || "",
+            Model: item.Model || "",
+            _item: item._item || ""
+        }));
+
+        createItemFilters();
+        applyFilters();
     })
     .catch(err => console.error("Error loading JSON:", err));
 
+
+//CREATE CHECKBOXES
+function createItemFilters() {
+    const container = document.getElementById("item-filters");
+
+    const uniqueItems = [...new Set(allData.map(d => d._item).filter(Boolean))];
+
+    uniqueItems.forEach(item => {
+        const label = document.createElement("label");
+
+        label.innerHTML = `
+            <input type="checkbox" value="${item}">
+            ${item}
+        `;
+
+        label.querySelector("input").addEventListener("change", (e) => {
+            if (e.target.checked) {
+                selectedItems.add(item);
+            } else {
+                selectedItems.delete(item);
+            }
+
+            applyFilters();
+        });
+
+        container.appendChild(label);
+    });
+}
+
+
+//APPLY ALL FILTERS (search + checkboxes)
+function applyFilters() {
+    const searchValue = document.getElementById("search").value.trim().toLowerCase();
+
+    filteredData = allData.filter(item => {
+
+        const matchesSearch =
+            item.Make.toLowerCase().includes(searchValue) ||
+            item.Model.toLowerCase().includes(searchValue) ||
+            String(item.Year).includes(searchValue) ||
+            item._item.toLowerCase().includes(searchValue);
+
+        const matchesItem =
+            selectedItems.size === 0 || selectedItems.has(item._item);
+
+        return matchesSearch && matchesItem;
+    });
+
+    applySort();
+}
+
+
+//SEARCH EVENT
+document.getElementById("search").addEventListener("input", applyFilters);
+
+
+//SORTING WITH ARROWS
+document.querySelectorAll("th[data-sort]").forEach(header => {
+    header.innerHTML += '<span class="arrow"></span>';
+
+    header.addEventListener("click", () => {
+        const key = header.getAttribute("data-sort");
+
+        if (currentSort.key === key) {
+            currentSort.asc = !currentSort.asc;
+        } else {
+            currentSort.key = key;
+            currentSort.asc = false; // high → low first
+        }
+
+        updateSortArrows();
+        applySort();
+    });
+});
+
+
+function updateSortArrows() {
+    document.querySelectorAll("th .arrow").forEach(a => a.textContent = "");
+
+    if (!currentSort.key) return;
+
+    const activeHeader = document.querySelector(`th[data-sort="${currentSort.key}"] .arrow`);
+    activeHeader.textContent = currentSort.asc ? "▲" : "▼";
+}
+
+
+function applySort() {
+    let dataToSort = [...filteredData];
+
+    if (currentSort.key) {
+        dataToSort.sort((a, b) => {
+            let valA = a[currentSort.key] ?? "";
+            let valB = b[currentSort.key] ?? "";
+
+            if (!isNaN(valA) && !isNaN(valB)) {
+                return currentSort.asc ? valA - valB : valB - valA;
+            }
+
+            return currentSort.asc
+                ? String(valA).localeCompare(String(valB))
+                : String(valB).localeCompare(String(valA));
+        });
+    }
+
+    displayData(dataToSort);
+}
+
+
+//DISPLAY TABLE
 function displayData(data) {
     const tbody = document.querySelector("#data-table tbody");
     tbody.innerHTML = "";
@@ -15,35 +138,51 @@ function displayData(data) {
     data.forEach(item => {
         const row = document.createElement("tr");
 
+        const query = encodeURIComponent(item.Query);
+        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&rt=nc&LH_ItemCondition=4`;
+
         row.innerHTML = `
             <td>${item.VIN}</td>
             <td>${item.Year}</td>
             <td>${item.Make}</td>
             <td>${item.Model || "N/A"}</td>
             <td>$${item["Average Price"]}</td>
+            <td>$${item["Median Price"]}</td>
+            <td>${item._item}</td>
             <td>${item["Number of Sales"]}</td>
+            <td><button class="ebay-btn">Search</button></td>
         `;
 
-        // 👉 CLICK HANDLER
-        row.addEventListener("click", () => showDetails(item));
+        row.addEventListener("click", (e) => {
+            if (!e.target.classList.contains("ebay-btn")) {
+                showDetails(item);
+            }
+        });
+
+        row.querySelector(".ebay-btn").addEventListener("click", () => {
+            window.open(ebayURL, "_blank");
+        });
 
         tbody.appendChild(row);
     });
 }
 
-// 🔍 SEARCH
-document.getElementById("search").addEventListener("input", function () {
-    const value = this.value.toLowerCase();
 
-    const filtered = allData.filter(item =>
-        (item.Make && item.Make.toLowerCase().includes(value)) ||
-        (item.Model && item.Model.toLowerCase().includes(value))
-    );
+//CLEAR FILTERS BUTTON
+document.getElementById("clear-filters").addEventListener("click", () => {
+    selectedItems.clear();
 
-    displayData(filtered);
+    document.querySelectorAll("#item-filters input").forEach(cb => {
+        cb.checked = false;
+    });
+
+    document.getElementById("search").value = "";
+
+    applyFilters();
 });
 
-// 📊 DETAILS PANEL
+
+//DETAILS PANEL
 function showDetails(item) {
     document.getElementById("details").classList.remove("hidden");
 
@@ -60,3 +199,41 @@ function showDetails(item) {
 function closeDetails() {
     document.getElementById("details").classList.add("hidden");
 }
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker
+            .register("./service-worker.js")
+            .then((reg) => console.log("Service worker registered.", reg))
+            .catch((err) => console.error("Service worker failed:", err));
+    });
+}
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show your install button
+    const btn = document.createElement("button");
+    btn.textContent = "Install App";
+    btn.style.position = "fixed";
+    btn.style.bottom = "20px";
+    btn.style.right = "20px";
+    btn.style.padding = "10px 15px";
+    btn.style.background = "black";
+    btn.style.color = "white";
+    btn.style.border = "none";
+    btn.style.borderRadius = "5px";
+    document.body.appendChild(btn);
+
+    btn.addEventListener("click", async () => {
+        deferredPrompt.prompt();
+        const choiceResult = await deferredPrompt.userChoice;
+        if (choiceResult.outcome === "accepted") {
+            console.log("User accepted the install");
+        } else {
+            console.log("User dismissed the install");
+        }
+        deferredPrompt = null;
+        btn.remove();
+    });
+});
