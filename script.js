@@ -1,9 +1,11 @@
 let allData = [];
 let filteredData = [];
-let currentSort = { key: null, asc: false }; // 🔥 start HIGH → LOW
+let currentSort = { key: null, asc: false };
 let selectedItems = new Set();
 
-//LOAD + FIX JSON
+/* =========================
+   LOAD DATA
+========================= */
 fetch("all_data.json")
     .then(res => res.text())
     .then(text => {
@@ -22,8 +24,9 @@ fetch("all_data.json")
     })
     .catch(err => console.error("Error loading JSON:", err));
 
-
-//CREATE CHECKBOXES
+/* =========================
+   FILTERS
+========================= */
 function createItemFilters() {
     const container = document.getElementById("item-filters");
 
@@ -39,13 +42,12 @@ function createItemFilters() {
 
         const checkbox = label.querySelector("input");
 
-        checkbox.addEventListener("change", (e) => {
-            if (e.target.checked) {
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
                 selectedItems.add(item);
             } else {
                 selectedItems.delete(item);
             }
-
             applyFilters();
         });
 
@@ -53,14 +55,14 @@ function createItemFilters() {
     });
 }
 
-
-//APPLY ALL FILTERS (search + checkboxes)
+/* =========================
+   SEARCH + FILTER LOGIC
+========================= */
 function applyFilters() {
     const searchValue = document.getElementById("search").value.trim().toLowerCase();
+    const words = searchValue.split(" ").filter(Boolean);
 
     filteredData = allData.filter(item => {
-
-        const words = searchValue.split(" ").filter(Boolean);
 
         const matchesSearch = words.every(word =>
             item.Make.toLowerCase().includes(word) ||
@@ -78,12 +80,45 @@ function applyFilters() {
     applySort();
 }
 
-
-//SEARCH EVENT
 document.getElementById("search").addEventListener("input", applyFilters);
 
+/* =========================
+   SORTING (FIXED)
+========================= */
+function normalizeValue(val) {
+    if (val === null || val === undefined) return 0;
 
-//SORTING WITH ARROWS
+    if (typeof val === "string") {
+        val = val.replace(/[$,]/g, "").trim();
+    }
+
+    if (!isNaN(val) && val !== "") {
+        return Number(val);
+    }
+
+    return String(val).toLowerCase();
+}
+
+function applySort() {
+    let dataToSort = [...filteredData];
+
+    if (currentSort.key) {
+        dataToSort.sort((a, b) => {
+            let valA = normalizeValue(a[currentSort.key]);
+            let valB = normalizeValue(b[currentSort.key]);
+
+            if (valA < valB) return currentSort.asc ? -1 : 1;
+            if (valA > valB) return currentSort.asc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    displayData(dataToSort);
+}
+
+/* =========================
+   DESKTOP SORT (HEADERS)
+========================= */
 document.querySelectorAll("th[data-sort]").forEach(header => {
     header.innerHTML += '<span class="arrow"></span>';
 
@@ -94,7 +129,7 @@ document.querySelectorAll("th[data-sort]").forEach(header => {
             currentSort.asc = !currentSort.asc;
         } else {
             currentSort.key = key;
-            currentSort.asc = false; // high → low first
+            currentSort.asc = false;
         }
 
         updateSortArrows();
@@ -102,40 +137,39 @@ document.querySelectorAll("th[data-sort]").forEach(header => {
     });
 });
 
-
 function updateSortArrows() {
     document.querySelectorAll("th .arrow").forEach(a => a.textContent = "");
 
     if (!currentSort.key) return;
 
-    const activeHeader = document.querySelector(`th[data-sort="${currentSort.key}"] .arrow`);
-    activeHeader.textContent = currentSort.asc ? "▲" : "▼";
+    const active = document.querySelector(`th[data-sort="${currentSort.key}"] .arrow`);
+    active.textContent = currentSort.asc ? "▲" : "▼";
 }
 
+/* =========================
+   MOBILE SORT DROPDOWN
+========================= */
+const mobileSort = document.getElementById("mobile-sort");
 
-function applySort() {
-    let dataToSort = [...filteredData];
+if (mobileSort) {
+    mobileSort.addEventListener("change", (e) => {
+        const key = e.target.value;
+        if (!key) return;
 
-    if (currentSort.key) {
-        dataToSort.sort((a, b) => {
-            let valA = a[currentSort.key] ?? "";
-            let valB = b[currentSort.key] ?? "";
+        if (currentSort.key === key) {
+            currentSort.asc = !currentSort.asc;
+        } else {
+            currentSort.key = key;
+            currentSort.asc = false;
+        }
 
-            if (!isNaN(valA) && !isNaN(valB)) {
-                return currentSort.asc ? valA - valB : valB - valA;
-            }
-
-            return currentSort.asc
-                ? String(valA).localeCompare(String(valB))
-                : String(valB).localeCompare(String(valA));
-        });
-    }
-
-    displayData(dataToSort);
+        applySort();
+    });
 }
 
-
-//DISPLAY TABLE
+/* =========================
+   DISPLAY DATA (CARD READY)
+========================= */
 function displayData(data) {
     const tbody = document.querySelector("#data-table tbody");
     tbody.innerHTML = "";
@@ -144,19 +178,19 @@ function displayData(data) {
         const row = document.createElement("tr");
 
         const query = encodeURIComponent(item.Query);
-        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&rt=nc&LH_ItemCondition=4`;
+        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
 
         row.innerHTML = `
-    <td data-label="VIN"><span>${item.VIN}</span></td>
-    <td data-label="Year"><span>${item.Year}</span></td>
-    <td data-label="Make"><span>${item.Make}</span></td>
-    <td data-label="Model"><span>${item.Model || "N/A"}</span></td>
-    <td data-label="Avg Price"><span>$${item["Average Price"]}</span></td>
-    <td data-label="Median Price"><span>$${item["Median Price"]}</span></td>
-    <td data-label="Item"><span>${item._item}</span></td>
-    <td data-label="Sales"><span>${item["Number of Sales"]}</span></td>
-    <td data-label="eBay"><button class="ebay-btn">Search</button></td>
-`;
+            <td data-label="VIN"><span>${item.VIN}</span></td>
+            <td data-label="Year"><span>${item.Year}</span></td>
+            <td data-label="Make"><span>${item.Make}</span></td>
+            <td data-label="Model"><span>${item.Model || "N/A"}</span></td>
+            <td data-label="Avg Price"><span>$${item["Average Price"]}</span></td>
+            <td data-label="Median Price"><span>$${item["Median Price"]}</span></td>
+            <td data-label="Item"><span>${item._item}</span></td>
+            <td data-label="Sales"><span>${item["Number of Sales"]}</span></td>
+            <td data-label="eBay"><button class="ebay-btn">Search</button></td>
+        `;
 
         row.addEventListener("click", (e) => {
             if (!e.target.classList.contains("ebay-btn")) {
@@ -172,8 +206,9 @@ function displayData(data) {
     });
 }
 
-
-//CLEAR FILTERS BUTTON
+/* =========================
+   CLEAR FILTERS
+========================= */
 document.getElementById("clear-filters").addEventListener("click", () => {
     selectedItems.clear();
 
@@ -186,8 +221,9 @@ document.getElementById("clear-filters").addEventListener("click", () => {
     applyFilters();
 });
 
-
-//DETAILS PANEL
+/* =========================
+   DETAILS PANEL
+========================= */
 function showDetails(item) {
     document.getElementById("details").classList.remove("hidden");
 
@@ -205,7 +241,10 @@ function closeDetails() {
     document.getElementById("details").classList.add("hidden");
 }
 
-document.getElementById("scan-vin-btn").addEventListener("click", () => {
+/* =========================
+   VIN SCANNER + DECODER
+========================= */
+document.getElementById("scan-vin-btn")?.addEventListener("click", () => {
     const readerDiv = document.getElementById("reader");
     readerDiv.style.display = "block";
 
@@ -214,11 +253,10 @@ document.getElementById("scan-vin-btn").addEventListener("click", () => {
     html5QrCode.start(
         { facingMode: "environment" },
         { fps: 10, qrbox: 250 },
-        async (decodedText) => {
-            html5QrCode.stop();
+        async (vin) => {
+            await html5QrCode.stop();
             readerDiv.style.display = "none";
-
-            handleVIN(decodedText);
+            handleVIN(vin);
         }
     );
 });
@@ -236,80 +274,64 @@ async function handleVIN(vin) {
             `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${vin}?format=json`
         );
         const data = await res.json();
-        const vehicle = data.Results[0];
+        const v = data.Results[0];
 
-        const year = vehicle.ModelYear;
-        const make = vehicle.Make;
-        const model = vehicle.Model;
+        const searchString = `${v.Make} ${v.Model} ${v.ModelYear}`;
 
-        if (!year || !make || !model) {
-            alert("Could not decode VIN");
-            return;
-        }
-
-        // 🔥 Auto search using decoded info
-        document.getElementById("search").value = `${make} ${model} ${year}`;
+        document.getElementById("search").value = searchString;
         applyFilters();
 
         if (filteredData.length === 0) {
-            alert("No matching results found for this VIN.");
+            alert("No matching results found.");
         }
 
     } catch (err) {
         console.error(err);
-        alert("Error decoding VIN");
+        alert("VIN decode failed");
     }
 }
 
-document.getElementById("mobile-sort").addEventListener("change", (e) => {
-    const key = e.target.value;
-
-    if (!key) return;
-
-    if (currentSort.key === key) {
-        currentSort.asc = !currentSort.asc;
-    } else {
-        currentSort.key = key;
-        currentSort.asc = false;
-    }
-
-    applySort();
-});
-
-
+/* =========================
+   PWA INSTALL BUTTON
+========================= */
 let deferredPrompt;
+
 window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     deferredPrompt = e;
 
     const btn = document.createElement("button");
     btn.textContent = "Install App";
+
     Object.assign(btn.style, {
         position: "fixed",
         bottom: "20px",
         right: "20px",
-        padding: "10px 15px",
+        padding: "10px",
         background: "black",
         color: "white",
         border: "none",
-        borderRadius: "5px",
+        borderRadius: "6px",
         zIndex: "1000"
     });
+
     document.body.appendChild(btn);
 
     btn.addEventListener("click", async () => {
         deferredPrompt.prompt();
-        const choiceResult = await deferredPrompt.userChoice;
+        await deferredPrompt.userChoice;
         deferredPrompt = null;
         btn.remove();
     });
 });
 
+/* =========================
+   SERVICE WORKER
+========================= */
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker
             .register("./service-worker.js")
-            .then(reg => console.log("Service worker registered.", reg))
-            .catch(err => console.error("Service worker registration failed:", err));
+            .catch(err => console.error(err));
     });
 }
