@@ -4,15 +4,44 @@
 <head>
     <meta charset="UTF-8">
     <title>VIN Data Viewer</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
+
+    <!-- PWA + Mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#000000">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Icons -->
     <link rel="apple-touch-icon" href="UAR.png">
     <link rel="icon" type="image/png" href="UAR.png">
 
+    <!-- Manifest -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- ZXing (VIN Scanner) -->
+    <script src="https://unpkg.com/@zxing/browser@latest"></script>
+
+    <style>
+        /* Scanner container FIX */
+        #reader {
+            display: none;
+            width: 100%;
+            max-width: 400px;
+            height: 300px;
+            margin: 15px auto;
+            background: black;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* Optional: nicer button spacing */
+        #scan-vin-btn {
+            margin: 10px 0;
+        }
+    </style>
 </head>
 
 <body>
@@ -26,8 +55,12 @@
         <div id="item-filters"></div>
         <button id="clear-filters">Clear Filters</button>
     </div>
+
+    <!-- VIN Scanner -->
     <button id="scan-vin-btn">Scan VIN</button>
-    <div id="reader" style="display:none;"></div>
+    <div id="reader"></div>
+
+    <!-- Mobile Sort -->
     <select id="mobile-sort">
         <option value="">Sort By</option>
         <option value="Year">Year</option>
@@ -37,6 +70,8 @@
         <option value="Median Price">Median Price</option>
         <option value="Number of Sales">Sales</option>
     </select>
+
+    <!-- Data Table -->
     <div class="table-container">
         <table id="data-table">
             <thead>
@@ -56,7 +91,7 @@
         </table>
     </div>
 
-    <!-- Details panel -->
+    <!-- Details Panel -->
     <div id="details" class="hidden">
         <h2>Vehicle Details</h2>
         <p><strong>VIN:</strong> <span id="d-vin"></span></p>
@@ -69,8 +104,10 @@
         <p><strong>Sales Count:</strong> <span id="d-sales"></span></p>
         <button onclick="closeDetails()">Close</button>
     </div>
-    <script src="https://unpkg.com/@zxing/browser@latest"></script>
+
+    <!-- Script -->
     <script src="script.js"></script>
+
 </body>
 
 </html>
