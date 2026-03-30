@@ -29,6 +29,7 @@ fetch("all_data.json")
 ========================= */
 function createItemFilters() {
     const container = document.getElementById("item-filters");
+    container.innerHTML = "";
 
     const uniqueItems = [...new Set(allData.map(d => d._item).filter(Boolean))];
 
@@ -43,11 +44,10 @@ function createItemFilters() {
         const checkbox = label.querySelector("input");
 
         checkbox.addEventListener("change", () => {
-            if (checkbox.checked) {
-                selectedItems.add(item);
-            } else {
-                selectedItems.delete(item);
-            }
+            checkbox.checked
+                ? selectedItems.add(item)
+                : selectedItems.delete(item);
+
             applyFilters();
         });
 
@@ -63,7 +63,6 @@ function applyFilters() {
     const words = searchValue.split(" ").filter(Boolean);
 
     filteredData = allData.filter(item => {
-
         const matchesSearch = words.every(word =>
             item.Make.toLowerCase().includes(word) ||
             item.Model.toLowerCase().includes(word) ||
@@ -83,7 +82,7 @@ function applyFilters() {
 document.getElementById("search").addEventListener("input", applyFilters);
 
 /* =========================
-   SORTING (FIXED)
+   SORTING
 ========================= */
 function normalizeValue(val) {
     if (val === null || val === undefined) return 0;
@@ -92,9 +91,7 @@ function normalizeValue(val) {
         val = val.replace(/[$,]/g, "").trim();
     }
 
-    if (!isNaN(val) && val !== "") {
-        return Number(val);
-    }
+    if (!isNaN(val) && val !== "") return Number(val);
 
     return String(val).toLowerCase();
 }
@@ -117,7 +114,7 @@ function applySort() {
 }
 
 /* =========================
-   DESKTOP SORT (HEADERS)
+   DESKTOP SORT
 ========================= */
 document.querySelectorAll("th[data-sort]").forEach(header => {
     header.innerHTML += '<span class="arrow"></span>';
@@ -147,7 +144,7 @@ function updateSortArrows() {
 }
 
 /* =========================
-   MOBILE SORT DROPDOWN
+   MOBILE SORT
 ========================= */
 const mobileSort = document.getElementById("mobile-sort");
 
@@ -168,7 +165,7 @@ if (mobileSort) {
 }
 
 /* =========================
-   DISPLAY DATA (CARD READY)
+   DISPLAY DATA
 ========================= */
 function displayData(data) {
     const tbody = document.querySelector("#data-table tbody");
@@ -242,30 +239,53 @@ function closeDetails() {
 }
 
 /* =========================
-   VIN SCANNER + DECODER
+   VIN SCANNER (ZXING)
 ========================= */
-document.getElementById("scan-vin-btn")?.addEventListener("click", () => {
+let codeReader;
+
+document.getElementById("scan-vin-btn")?.addEventListener("click", async () => {
     const readerDiv = document.getElementById("reader");
     readerDiv.style.display = "block";
 
-    const html5QrCode = new Html5Qrcode("reader");
+    codeReader = new ZXing.BrowserMultiFormatReader();
 
-    html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        async (vin) => {
-            await html5QrCode.stop();
-            readerDiv.style.display = "none";
-            handleVIN(vin);
-        }
-    );
+    try {
+        const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+        const selectedDeviceId = devices.find(d => d.label.toLowerCase().includes("back"))?.deviceId || devices[0]?.deviceId;
+
+        codeReader.decodeFromVideoDevice(
+            selectedDeviceId,
+            "reader",
+            async (result) => {
+                if (result) {
+                    const rawText = result.getText();
+
+                    await codeReader.reset();
+                    readerDiv.style.display = "none";
+
+                    handleVIN(rawText);
+                }
+            }
+        );
+    } catch (err) {
+        console.error(err);
+        alert("Camera error");
+    }
 });
 
-async function handleVIN(vin) {
-    vin = vin.trim().toUpperCase();
+/* =========================
+   VIN HANDLER
+========================= */
+function extractVIN(text) {
+    const match = text.match(/[A-HJ-NPR-Z0-9]{17}/);
+    return match ? match[0] : null;
+}
 
-    if (vin.length !== 17) {
-        alert("Invalid VIN");
+async function handleVIN(rawText) {
+    const vin = extractVIN(rawText);
+
+    if (!vin) {
+        alert("Could not detect a valid VIN");
         return;
     }
 
@@ -292,7 +312,7 @@ async function handleVIN(vin) {
 }
 
 /* =========================
-   PWA INSTALL BUTTON
+   PWA INSTALL
 ========================= */
 let deferredPrompt;
 
