@@ -239,7 +239,7 @@ function closeDetails() {
 }
 
 /* =========================
-   VIN SCANNER (ZXING)
+   VIN SCANNER (FIXED BLACK SCREEN)
 ========================= */
 let codeReader;
 
@@ -251,22 +251,40 @@ document.getElementById("scan-vin-btn")?.addEventListener("click", async () => {
 
     try {
         const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-        const selectedDeviceId = devices.find(d => d.label.toLowerCase().includes("back"))?.deviceId || devices[0]?.deviceId;
 
-        codeReader.decodeFromVideoDevice(
+        let selectedDeviceId = devices.find(d =>
+            d.label.toLowerCase().includes("back")
+        )?.deviceId;
+
+        if (!selectedDeviceId) {
+            selectedDeviceId = devices[devices.length - 1]?.deviceId;
+        }
+
+        await codeReader.decodeFromVideoDevice(
             selectedDeviceId,
             "reader",
-            async (result) => {
+            (result) => {
                 if (result) {
                     const rawText = result.getText();
 
-                    await codeReader.reset();
+                    codeReader.reset();
                     readerDiv.style.display = "none";
 
                     handleVIN(rawText);
                 }
             }
         );
+
+        // 🔥 FIX: force video to render (Safari + black screen fix)
+        setTimeout(() => {
+            const video = document.querySelector("#reader video");
+            if (video) {
+                video.setAttribute("playsinline", true);
+                video.muted = true;
+                video.play();
+            }
+        }, 500);
+
     } catch (err) {
         console.error(err);
         alert("Camera error");
