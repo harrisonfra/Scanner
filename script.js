@@ -309,7 +309,7 @@ async function handleVIN(rawText) {
 
     try {
         const res = await fetch(
-            `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${vin}?format=json`
+            `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvalues/${vin}`
         );
         const data = await res.json();
         const v = data.Results[0];
