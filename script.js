@@ -175,7 +175,7 @@ function displayData(data) {
         const row = document.createElement("tr");
 
         const query = encodeURIComponent(item.Query);
-        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1`;
+        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&LH_ItemCondition=4`;
 
         row.innerHTML = `
             <td data-label="VIN"><span>${item.VIN}</span></td>
