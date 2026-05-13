@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VIN JSON Cleaner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <h1>VIN JSON Cleaner</h1>
+    <p>Load a JSON file, remove messy rows, and export cleaned data.</p>
+  </header>
+
+  <main>
+
+    <section class="controls">
+      <input type="file" id="fileInput" accept=".json" />
+
+      <button id="removeIncompleteBtn">
+        Remove Incomplete Rows
+      </button>
+
+      <button id="downloadBtn">
+        Download Cleaned JSON
+      </button>
+
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Search VIN or text..."
+      />
+    </section>
+
+    <section class="stats">
+      <p>Total Rows: <span id="rowCount">0</span></p>
+    </section>
+
+    <section id="tableContainer">
+      <table id="dataTable">
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
