@@ -3,126 +3,155 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VIN Scanner Tool</title>
+<title>VIN Scanner (Quagga)</title>
 
-<!-- Barcode Scanner Library -->
-<script src="https://unpkg.com/html5-qrcode"></script>
+<!-- Quagga2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
 
 <style>
-    body {
-        font-family: Arial, sans-serif;
-        background: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        padding: 20px;
-    }
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f4;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+}
 
-    .container {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        width: 420px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
+.container {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    width: 420px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
 
-    h1 {
-        text-align: center;
-    }
+.viewport {
+    width: 100%;
+    height: 300px;
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
 
-    input {
-        width: 100%;
-        padding: 10px;
-        font-size: 16px;
-        margin-bottom: 10px;
-    }
+.viewport video,
+.viewport canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
 
-    button {
-        width: 100%;
-        padding: 10px;
-        font-size: 16px;
-        margin-bottom: 10px;
-        background: #007bff;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-    }
+canvas.drawingBuffer {
+    position: absolute;
+    top: 0;
+    left: 0;
+}
 
-    button:hover {
-        background: #0056b3;
-    }
+input, button {
+    width: 100%;
+    padding: 10px;
+    margin-top: 8px;
+}
 
-    #reader {
-        width: 100%;
-        margin-top: 10px;
-        display: none;
-    }
+button {
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+}
 
-    .result {
-        margin-top: 15px;
-        font-size: 14px;
-    }
+.result {
+    margin-top: 10px;
+    font-size: 14px;
+}
 
-    .error {
-        color: red;
-        margin-top: 10px;
-    }
+.error {
+    color: red;
+}
 </style>
 </head>
 
 <body>
 
 <div class="container">
-    <h1>VIN Scanner</h1>
+    <h2>VIN Scanner</h2>
 
-    <input type="text" id="vinInput" placeholder="Enter or scan VIN..." maxlength="17">
+    <div id="interactive" class="viewport"></div>
+
+    <button onclick="startScanner()">Start Scanner</button>
+    <button onclick="stopScanner()">Stop Scanner</button>
+
+    <input type="text" id="vinInput" placeholder="VIN will appear here">
+
     <button onclick="decodeVIN()">Decode VIN</button>
-    <button onclick="startScanner()">Start Camera Scan</button>
-    <button onclick="stopScanner()">Stop Camera</button>
 
-    <div id="reader"></div>
-
+    <p id="barcode-result">No barcode detected</p>
     <div id="error" class="error"></div>
     <div id="result" class="result"></div>
 </div>
 
 <script>
-let scanner = null;
+let scanning = false;
 
 function startScanner() {
-    const readerDiv = document.getElementById("reader");
-    readerDiv.style.display = "block";
+    if (scanning) return;
 
-    scanner = new Html5Qrcode("reader");
-
-    scanner.start(
-        { facingMode: "environment" }, // back camera
-        {
-            fps: 10,
-            qrbox: 250
-        },
-        (decodedText) => {
-            // VINs are 17 characters
-            if (decodedText.length === 17) {
-                document.getElementById("vinInput").value = decodedText;
-                stopScanner();
-                decodeVIN();
+    Quagga.init({
+        inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.querySelector('#interactive'),
+            constraints: {
+                facingMode: "environment",
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
             }
         },
-        (errorMessage) => {
-            // ignore scan errors
+        locator: {
+            patchSize: "medium",
+            halfSample: true
+        },
+        decoder: {
+            readers: ["code_39_reader"]
+        },
+        locate: true
+    }, function (err) {
+        if (err) {
+            console.error(err);
+            document.getElementById("error").textContent = "Camera error.";
+            return;
         }
-    ).catch(err => {
-        console.error(err);
-        document.getElementById("error").textContent = "Camera access failed.";
+        Quagga.start();
+        scanning = true;
     });
+
+    Quagga.onDetected(onDetected);
 }
 
 function stopScanner() {
-    if (scanner) {
-        scanner.stop().then(() => {
-            document.getElementById("reader").style.display = "none";
-        }).catch(err => console.error(err));
+    if (scanning) {
+        Quagga.stop();
+        Quagga.offDetected(onDetected);
+        scanning = false;
+    }
+}
+
+function onDetected(result) {
+    const code = result.codeResult.code;
+
+    // VIN validation: 17 chars, no I O Q
+    const vinMatch = code.match(/[A-HJ-NPR-Z0-9]{17}/);
+
+    if (vinMatch) {
+        const vin = vinMatch[0];
+
+        document.getElementById('barcode-result').textContent = "Detected: " + vin;
+        document.getElementById('vinInput').value = vin;
+
+        stopScanner();
+        decodeVIN();
+    } else {
+        document.getElementById('barcode-result').textContent = "Scanned: " + code;
     }
 }
 
@@ -135,42 +164,31 @@ async function decodeVIN() {
     errorDiv.textContent = "";
 
     if (vin.length !== 17) {
-        errorDiv.textContent = "VIN must be exactly 17 characters.";
+        errorDiv.textContent = "VIN must be 17 characters.";
         return;
     }
 
     try {
-        const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
-        const data = await response.json();
+        const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+        const data = await res.json();
         const results = data.Results;
 
-        function getValue(label) {
+        function get(label) {
             const item = results.find(r => r.Variable === label);
             return item && item.Value ? item.Value : "N/A";
         }
 
         resultDiv.innerHTML = `
-            <p><strong>Make:</strong> ${getValue("Make")}</p>
-            <p><strong>Model:</strong> ${getValue("Model")}</p>
-            <p><strong>Year:</strong> ${getValue("Model Year")}</p>
-            <p><strong>Trim:</strong> ${getValue("Trim")}</p>
-            <p><strong>Body:</strong> ${getValue("Body Class")}</p>
-            <p><strong>Engine:</strong> ${getValue("Engine Model")}</p>
-            <p><strong>Fuel:</strong> ${getValue("Fuel Type - Primary")}</p>
-            <p><strong>Drive:</strong> ${getValue("Drive Type")}</p>
+            <p><strong>Make:</strong> ${get("Make")}</p>
+            <p><strong>Model:</strong> ${get("Model")}</p>
+            <p><strong>Year:</strong> ${get("Model Year")}</p>
+            <p><strong>Trim:</strong> ${get("Trim")}</p>
+            <p><strong>Body:</strong> ${get("Body Class")}</p>
         `;
     } catch (err) {
-        errorDiv.textContent = "Error fetching VIN data.";
-        console.error(err);
+        errorDiv.textContent = "Failed to fetch VIN data.";
     }
 }
-
-// Enter key support (good for hardware scanners)
-document.getElementById("vinInput").addEventListener("keypress", function(e) {
-    if (e.key === "Enter") {
-        decodeVIN();
-    }
-});
 </script>
 
 </body>
