@@ -139,7 +139,7 @@
 
     <div class="container">
 
-        <h1>VIN Scanner 1.2</h1>
+        <h1>VIN Scanner 1.3</h1>
 
         <div id="interactive" class="viewport"></div>
 
@@ -163,8 +163,9 @@
     </div>
 
     <script>
-        let scanning = false;
 
+        let scanning = false;
+        Quagga.onDetected(onDetected);
         const vinInput = document.getElementById("vinInput");
         const resultDiv = document.getElementById("result");
         const errorDiv = document.getElementById("error");
@@ -187,13 +188,13 @@
                     target: document.querySelector("#interactive"),
                     constraints: {
                         facingMode: "environment",
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 },
-                        advanced: [
-                            // { focusMode: "continuous" },
-                            { exposureMode: "continuous" },
-                            { whiteBalanceMode: "continuous" }
-                        ]
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }//,
+                        // advanced: [
+                        //     { focusMode: "continuous" },
+                        //     { exposureMode: "continuous" },
+                        //     { whiteBalanceMode: "continuous" }
+                        // ]
                     }
                 },
 
@@ -224,7 +225,7 @@
                 scanning = true;
             });
 
-            Quagga.onDetected(onDetected);
+
         }
 
         function stopScanner() {
@@ -232,7 +233,6 @@
             if (!scanning) return;
 
             Quagga.stop();
-            Quagga.offDetected(onDetected);
 
             scanning = false;
         }
@@ -401,8 +401,6 @@
     <p><strong>Backup Camera:</strong> ${get("Backup Camera")}</p>
     <p><strong>TPMS:</strong> ${get("Tire Pressure Monitoring System (TPMS) Type")}</p>
 `;
-
-                resultDiv.appendChild(grid);
 
             } catch (err) {
 
