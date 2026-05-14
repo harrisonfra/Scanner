@@ -4,6 +4,11 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
     <title>VIN Scanner + Full NHTSA Decode</title>
 
     <!-- Quagga2 -->
@@ -163,9 +168,9 @@
     </div>
 
     <script>
-
+        let quaggaInitialized = false;
         let scanning = false;
-        Quagga.onDetected(onDetected);
+
         const vinInput = document.getElementById("vinInput");
         const resultDiv = document.getElementById("result");
         const errorDiv = document.getElementById("error");
@@ -181,51 +186,55 @@
 
             errorDiv.textContent = "";
 
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector("#interactive"),
-                    constraints: {
-                        facingMode: "environment",
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }//,
-                        // advanced: [
-                        //     { focusMode: "continuous" },
-                        //     { exposureMode: "continuous" },
-                        //     { whiteBalanceMode: "continuous" }
-                        // ]
+            // FIRST TIME ONLY
+            if (!quaggaInitialized) {
+
+                Quagga.init({
+
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: document.querySelector("#interactive"),
+
+                        constraints: {
+                            facingMode: "environment"
+                        }
+                    },
+
+                    locator: {
+                        patchSize: "medium",
+                        halfSample: true
+                    },
+
+                    decoder: {
+                        readers: [
+                            "code_39_reader",
+                            "code_128_reader"
+                        ]
+                    },
+
+                    locate: true
+
+                }, function (err) {
+
+                    if (err) {
+                        console.error(err);
+                        errorDiv.textContent = "Failed to access camera.";
+                        return;
                     }
-                },
 
-                locator: {
-                    patchSize: "large",
-                    halfSample: true
-                },
+                    Quagga.start();
 
-                decoder: {
-                    readers: [
-                        "code_39_reader",
-                        "code_128_reader",
-                        "pdf417_reader"
-                    ]
-                },
+                    scanning = true;
+                    quaggaInitialized = true;
+                });
 
-                locate: true
-
-            }, function (err) {
-
-                if (err) {
-                    console.error(err);
-                    errorDiv.textContent = "Failed to access camera.";
-                    return;
-                }
+            } else {
 
                 Quagga.start();
+
                 scanning = true;
-            });
-
-
+            }
         }
 
         function stopScanner() {
@@ -420,6 +429,8 @@
 
             return div.innerHTML;
         }
+
+        Quagga.onDetected(onDetected);
     </script>
 
 </body>
