@@ -187,13 +187,18 @@
                     target: document.querySelector("#interactive"),
                     constraints: {
                         facingMode: "environment",
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        advanced: [
+                            { focusMode: "continuous" },
+                            { exposureMode: "continuous" },
+                            { whiteBalanceMode: "continuous" }
+                        ]
                     }
                 },
 
                 locator: {
-                    patchSize: "medium",
+                    patchSize: "large",
                     halfSample: true
                 },
 
@@ -232,6 +237,9 @@
             scanning = false;
         }
 
+        let lastVin = "";
+        let lastTime = 0;
+
         function onDetected(result) {
 
             const code = result.codeResult.code;
@@ -248,13 +256,17 @@
             }
 
             const vin = vinMatch[0];
+            const now = Date.now();
 
-            barcodeResult.textContent = `Detected VIN: ${vin}`;
+            if (vin === lastVin && now - lastTime < 3000) return;
 
-            vinInput.value = vin;
+            lastVin = vin;
+            lastTime = now;
+
+            document.getElementById('barcode-result').textContent = "Detected: " + vin;
+            document.getElementById('vinInput').value = vin;
 
             stopScanner();
-
             decodeVIN();
         }
 
