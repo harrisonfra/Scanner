@@ -46,9 +46,11 @@
     </div>
 
     <script>
+        
         let quaggaInitialized = false;
         let scanning = false;
         let detectorBound = false;
+        
 
         const vinInput = document.getElementById("vinInput");
         const resultDiv = document.getElementById("result");
@@ -114,6 +116,7 @@
             if (!scanning) return;
 
             Quagga.offDetected(onDetected);
+
             Quagga.stop();
 
             const video = document.querySelector("video");
@@ -121,6 +124,8 @@
                 video.srcObject.getTracks().forEach(track => track.stop());
                 video.srcObject = null;
             }
+
+            detectorBound = false; // 🔥 ADD THIS
 
             scanning = false;
         }
