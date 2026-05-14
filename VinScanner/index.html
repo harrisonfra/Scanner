@@ -19,7 +19,7 @@
 
     <div class="container">
 
-        <h1>VIN Scanner 1.8</h1>
+        <h1>VIN Scanner 1.9</h1>
 
         <div id="interactive" class="viewport">
             <div class="scan-box"></div>
@@ -46,11 +46,11 @@
     </div>
 
     <script>
-        
+
         let quaggaInitialized = false;
         let scanning = false;
         let detectorBound = false;
-        
+
 
         const vinInput = document.getElementById("vinInput");
         const resultDiv = document.getElementById("result");
@@ -334,7 +334,9 @@
 
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", () => {
-                navigator.serviceWorker.register("./service-worker.js")
+                navigator.serviceWorker.register("./service-worker.js", {
+                    scope: "./"
+                })
                     .then(reg => console.log("SW registered"))
                     .catch(err => console.log("SW failed", err));
             });
