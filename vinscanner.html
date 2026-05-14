@@ -5,10 +5,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-
     <title>VIN Scanner + Full NHTSA Decode</title>
 
     <!-- Quagga2 -->
@@ -157,7 +153,8 @@
 
     <div class="container">
 
-        <h1>VIN Scanner 1.4</h1>
+        <h1>VIN Scanner 1.5</h1>
+        <button onclick="hardRefresh()">Hard Refresh</button>
 
         <div id="interactive" class="viewport">
             <div class="scan-box"></div>
@@ -185,6 +182,7 @@
     <script>
         let quaggaInitialized = false;
         let scanning = false;
+        let detectorBound = false;
 
         const vinInput = document.getElementById("vinInput");
         const resultDiv = document.getElementById("result");
@@ -201,64 +199,62 @@
 
             errorDiv.textContent = "";
 
-            // FIRST TIME ONLY
-            if (!quaggaInitialized) {
-
-                Quagga.init({
-
-                    inputStream: {
-                        name: "Live",
-                        type: "LiveStream",
-                        target: document.querySelector("#interactive"),
-
-                        constraints: {
-                            facingMode: "environment",
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
-                        }
-                    },
-
-                    locator: {
-                        patchSize: "medium",
-                        halfSample: false
-                    },
-
-                    decoder: {
-                        readers: [
-                            "code_39_reader",
-                            "code_128_reader"
-                        ]
-                    },
-
-                    locate: false
-
-                }, function (err) {
-
-                    if (err) {
-                        console.error(err);
-                        errorDiv.textContent = "Failed to access camera.";
-                        return;
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector("#interactive"),
+                    constraints: {
+                        facingMode: "environment",
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
                     }
+                },
 
-                    Quagga.start();
+                locator: {
+                    patchSize: "medium",
+                    halfSample: false
+                },
 
-                    scanning = true;
-                    quaggaInitialized = true;
-                });
+                decoder: {
+                    readers: [
+                        "code_39_reader",
+                        "code_128_reader"
+                    ]
+                },
 
-            } else {
+                locate: false
+
+            }, function (err) {
+
+                if (err) {
+                    console.error(err);
+                    errorDiv.textContent = "Failed to access camera.";
+                    return;
+                }
+
+                if (!detectorBound) {
+                    Quagga.onDetected(onDetected);
+                    detectorBound = true;
+                }
 
                 Quagga.start();
-
                 scanning = true;
-            }
+            });
         }
 
         function stopScanner() {
 
             if (!scanning) return;
 
+            Quagga.offDetected(onDetected);
             Quagga.stop();
+
+            const video = document.querySelector("video");
+            if (video && video.srcObject) {
+                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
 
             scanning = false;
         }
@@ -445,6 +441,22 @@
             div.textContent = text;
 
             return div.innerHTML;
+        }
+        function hardRefresh() {
+            const url = new URL(window.location.href);
+
+            // Add a unique timestamp so browser never reuses cache
+            url.searchParams.set("refresh", Date.now());
+
+            // Force reload from server
+            window.location.href = url.toString();
+        }
+
+        function resetScan() {
+            vinInput.value = "";
+            barcodeResult.textContent = "No barcode detected";
+            errorDiv.textContent = "";
+            resultDiv.innerHTML = "";
         }
 
         Quagga.onDetected(onDetected);
