@@ -128,6 +128,17 @@
             word-break: break-word;
         }
 
+        .scan-box {
+            position: absolute;
+            border: 3px solid lime;
+            width: 80%;
+            height: 80px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
         @media (max-width: 600px) {
             .result-grid {
                 grid-template-columns: 1fr;
@@ -136,6 +147,8 @@
             .controls {
                 flex-direction: column;
             }
+
+
         }
     </style>
 </head>
@@ -144,9 +157,11 @@
 
     <div class="container">
 
-        <h1>VIN Scanner 1.3</h1>
+        <h1>VIN Scanner 1.4</h1>
 
-        <div id="interactive" class="viewport"></div>
+        <div id="interactive" class="viewport">
+            <div class="scan-box"></div>
+        </div>
 
         <div class="controls">
             <button id="startBtn">Start Scanner</button>
@@ -197,13 +212,15 @@
                         target: document.querySelector("#interactive"),
 
                         constraints: {
-                            facingMode: "environment"
+                            facingMode: "environment",
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
                         }
                     },
 
                     locator: {
                         patchSize: "medium",
-                        halfSample: true
+                        halfSample: false
                     },
 
                     decoder: {
@@ -213,7 +230,7 @@
                         ]
                     },
 
-                    locate: true
+                    locate: false
 
                 }, function (err) {
 
@@ -267,7 +284,7 @@
             const vin = vinMatch[0];
             const now = Date.now();
 
-            if (vin === lastVin && now - lastTime < 3000) return;
+            if (vin === lastVin && now - lastTime < 1000) return;
 
             lastVin = vin;
             lastTime = now;
