@@ -19,7 +19,7 @@
 
     <div class="container">
 
-        <h1>VIN Scanner 1.7</h1>
+        <h1>VIN Scanner 1.8</h1>
 
         <div id="interactive" class="viewport">
             <div class="scan-box"></div>
@@ -326,6 +326,14 @@
         }
 
         Quagga.onDetected(onDetected);
+
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("./service-worker.js")
+                    .then(reg => console.log("SW registered"))
+                    .catch(err => console.log("SW failed", err));
+            });
+        }
     </script>
 
 </body>
