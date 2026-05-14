@@ -1,3 +1,11 @@
+self.addEventListener("install", () => {
+    self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+    event.waitUntil(self.clients.claim());
+}); 
+
 const CACHE_NAME = "vin-scanner-v1";
 
 const urlsToCache = [
