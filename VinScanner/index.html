@@ -4,43 +4,40 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-    <title>VIN Scanner + Full NHTSA Decode</title>
-
-    <!-- Quagga2 -->
+    <title>VIN Scanner</title>
     <script src="https://cdn.jsdelivr.net/npm/@ericblade/quagga2/dist/quagga.min.js"></script>
     <link rel="stylesheet" href="vinscanner.css" />
     <link rel="manifest" href="manifest.json">
-
-
-
 </head>
 
-<body>
+<body class="light">
 
-    <div class="container">
+    <div class="topbar">
+        <a href="../index.html" class="back-link">← VIN Viewer</a>
+        <span class="brand">VIN Scanner</span>
+        <button id="refreshBtn" class="icon-btn" title="Hard Refresh">↺</button>
+    </div>
 
-        <h1>VIN Scanner 1.11</h1>
+    <div class="page">
 
-        <div id="interactive" class="viewport">
-            <div class="scan-box"></div>
+        <div class="scanner-card">
+            <div id="interactive" class="scanner-viewport">
+                <div class="scan-box"></div>
+            </div>
+
+            <div class="scanner-controls">
+                <button id="startBtn" class="btn-primary">Start Scanner</button>
+                <button id="stopBtn" class="btn-ghost">Stop</button>
+            </div>
+
+            <div class="vin-row">
+                <input type="text" id="vinInput" placeholder="VIN" maxlength="17" class="vin-input" />
+                <button id="decodeBtn" class="btn-accent">Decode</button>
+            </div>
+
+            <div id="barcode-result" class="scanner-status">No barcode detected</div>
+            <div id="error" class="scanner-error"></div>
         </div>
-
-        <div class="controls">
-            <button id="startBtn">Start Scanner</button>
-            <button id="stopBtn">Stop Scanner</button>
-        </div>
-
-        <input type="text" id="vinInput" placeholder="VIN will appear here" maxlength="17" />
-
-        <button id="decodeBtn">Decode VIN</button>
-        <button onclick="hardRefresh()">Hard Refresh</button>
-
-        <div class="status" id="barcode-result">
-            No barcode detected
-        </div>
-
-        <div class="error" id="error"></div>
 
         <div id="result"></div>
 
@@ -48,24 +45,23 @@
 
     <script>
 
-        let quaggaInitialized = false;
         let scanning = false;
         let detectorBound = false;
+        let lastVin = "";
+        let lastTime = 0;
 
-
-        const vinInput = document.getElementById("vinInput");
-        const resultDiv = document.getElementById("result");
-        const errorDiv = document.getElementById("error");
+        const vinInput     = document.getElementById("vinInput");
+        const resultDiv    = document.getElementById("result");
+        const errorDiv     = document.getElementById("error");
         const barcodeResult = document.getElementById("barcode-result");
 
         document.getElementById("startBtn").addEventListener("click", startScanner);
         document.getElementById("stopBtn").addEventListener("click", stopScanner);
         document.getElementById("decodeBtn").addEventListener("click", decodeVIN);
+        document.getElementById("refreshBtn").addEventListener("click", hardRefresh);
 
         function startScanner() {
-
             if (scanning) return;
-
             errorDiv.textContent = "";
 
             Quagga.init({
@@ -79,273 +75,174 @@
                         height: { ideal: 720 }
                     }
                 },
-
-                locator: {
-                    patchSize: "medium",
-                    halfSample: false
-                },
-
-                decoder: {
-                    readers: [
-                        "code_39_reader",
-                        "code_128_reader"
-                    ]
-                },
-
+                locator: { patchSize: "medium", halfSample: false },
+                decoder: { readers: ["code_39_reader", "code_128_reader"] },
                 locate: false
-
             }, function (err) {
-
                 if (err) {
                     console.error(err);
                     errorDiv.textContent = "Failed to access camera.";
                     return;
                 }
-
                 if (!detectorBound) {
                     Quagga.onDetected(onDetected);
                     detectorBound = true;
                 }
-
                 Quagga.start();
                 scanning = true;
             });
         }
 
         function stopScanner() {
-
             if (!scanning) return;
-
             Quagga.offDetected(onDetected);
-
             Quagga.stop();
-
-            const video = document.querySelector("video");
+            const video = document.querySelector("#interactive video");
             if (video && video.srcObject) {
-                video.srcObject.getTracks().forEach(track => track.stop());
+                video.srcObject.getTracks().forEach(t => t.stop());
                 video.srcObject = null;
             }
-
-            detectorBound = false; // 🔥 ADD THIS
-
+            detectorBound = false;
             scanning = false;
         }
 
-        let lastVin = "";
-        let lastTime = 0;
-
         function onDetected(result) {
-
-            const code = result.codeResult.code;
-
-            // Clean spaces/symbols
-            const cleaned = code.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-
-            // VIN validation
+            const cleaned = result.codeResult.code.replace(/[^A-Z0-9]/gi, "").toUpperCase();
             const vinMatch = cleaned.match(/[A-HJ-NPR-Z0-9]{17}/);
-
             if (!vinMatch) {
                 barcodeResult.textContent = `Scanned: ${cleaned}`;
                 return;
             }
-
             const vin = vinMatch[0];
             const now = Date.now();
-
             if (vin === lastVin && now - lastTime < 1000) return;
-
             lastVin = vin;
             lastTime = now;
-
-            document.getElementById('barcode-result').textContent = "Detected: " + vin;
-            document.getElementById('vinInput').value = vin;
-
+            barcodeResult.textContent = "Detected: " + vin;
+            vinInput.value = vin;
             stopScanner();
             decodeVIN();
         }
 
         async function decodeVIN() {
-
             const vin = vinInput.value.trim().toUpperCase();
-
             resultDiv.innerHTML = "";
             errorDiv.textContent = "";
 
-            // Basic validation
             if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
-                errorDiv.textContent =
-                    "Invalid VIN. VINs must be 17 characters and cannot contain I, O, or Q.";
+                errorDiv.textContent = "Invalid VIN. Must be 17 characters, no I, O, or Q.";
                 return;
             }
 
+            resultDiv.innerHTML = `<p class="loading">Loading…</p>`;
+
             try {
-
-                const response = await fetch(
-                    `https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`
-                );
-
-                if (!response.ok) {
-                    throw new Error("Network response failed");
-                }
-
+                const response = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
+                if (!response.ok) throw new Error("Network response failed");
                 const data = await response.json();
-
                 const results = data.Results;
 
-                // Filter out useless/empty values
-                const filtered = results.filter(item => {
-
-                    if (!item.Value) return false;
-
-                    const value = String(item.Value).trim();
-
-                    return (
-                        value !== "" &&
-                        value !== "0" &&
-                        value !== "Not Applicable"
-                    );
-                });
-
-                // Sort alphabetically
-                filtered.sort((a, b) =>
-                    a.Variable.localeCompare(b.Variable)
-                );
-
-                // Build UI
-                const grid = document.createElement("div");
-                grid.className = "result-grid";
-
-                filtered.forEach(item => {
-
-                    const card = document.createElement("div");
-                    card.className = "result-item";
-
-                    card.innerHTML = `
-                <div class="label">${escapeHtml(item.Variable)}</div>
-                <div class="value">${escapeHtml(item.Value)}</div>
-            `;
-
-                    grid.appendChild(card);
-                });
-
-                // Helper to grab a variable safely
                 function get(label) {
                     const item = results.find(r => r.Variable === label);
-
-                    if (!item || item.Value === null || item.Value === "") {
-                        return "N/A";
-                    }
-
-                    return item.Value;
+                    return (!item || item.Value === null || item.Value === "" || item.Value === "Not Applicable") ? "N/A" : item.Value;
                 }
 
-                resultDiv.innerHTML = `
-    <h3>Vehicle Info</h3>
+                function val(v) { return v !== "N/A" ? v : "—"; }
 
-    <p><strong>Year:</strong> ${get("Model Year")}</p>
-    <p><strong>Make:</strong> ${get("Make")}</p>
-    <p><strong>Model:</strong> ${get("Model")}</p>
-    <p><strong>Trim:</strong> ${get("Trim")}</p>
-    <p><strong>Series:</strong> ${get("Series")}</p>
+                const sections = [
+                    { heading: "Vehicle", fields: [
+                        ["Year",         get("Model Year")],
+                        ["Make",         get("Make")],
+                        ["Model",        get("Model")],
+                        ["Trim",         get("Trim")],
+                        ["Series",       get("Series")],
+                        ["Body Class",   get("Body Class")],
+                        ["Vehicle Type", get("Vehicle Type")],
+                        ["Doors",        get("Doors")],
+                        ["Seats",        get("Number of Seats")],
+                    ]},
+                    { heading: "Engine / Drivetrain", fields: [
+                        ["Engine",        get("Engine Model")],
+                        ["Displacement",  get("Displacement (L)") !== "N/A" ? get("Displacement (L)") + "L" : "N/A"],
+                        ["Cylinders",     get("Engine Number of Cylinders")],
+                        ["Horsepower",    get("Engine Brake (hp) From") !== "N/A" ? get("Engine Brake (hp) From") + " hp" : "N/A"],
+                        ["Fuel Type",     get("Fuel Type - Primary")],
+                        ["Drive Type",    get("Drive Type")],
+                        ["Transmission",  get("Transmission Style")],
+                        ["Trans. Speeds", get("Transmission Speeds")],
+                    ]},
+                    { heading: "Chassis", fields: [
+                        ["Wheelbase",        get("Wheel Base (inches) From") !== "N/A" ? get("Wheel Base (inches) From") + " in" : "N/A"],
+                        ["Wheel Size Front", get("Wheel Size Front (inches)") !== "N/A" ? get("Wheel Size Front (inches)") + " in" : "N/A"],
+                        ["Wheel Size Rear",  get("Wheel Size Rear (inches)") !== "N/A" ? get("Wheel Size Rear (inches)") + " in" : "N/A"],
+                        ["GVWR",             get("Gross Vehicle Weight Rating From")],
+                    ]},
+                    { heading: "Safety", fields: [
+                        ["ABS",           get("Anti-lock Braking System (ABS)")],
+                        ["ESC",           get("Electronic Stability Control (ESC)")],
+                        ["Backup Camera", get("Backup Camera")],
+                        ["TPMS",          get("Tire Pressure Monitoring System (TPMS) Type")],
+                    ]},
+                    { heading: "Manufacturing", fields: [
+                        ["Manufacturer", get("Manufacturer Name")],
+                        ["Plant City",   get("Plant City")],
+                        ["Plant State",  get("Plant State")],
+                        ["Plant Country",get("Plant Country")],
+                    ]},
+                ];
 
-    <hr>
+                let html = `
+                    <div class="result-header">
+                        <div class="result-year-make">${val(get("Model Year"))} ${val(get("Make"))} ${val(get("Model"))}</div>
+                        <div class="result-vin">${vin}</div>
+                    </div>
+                `;
 
-    <h3>Engine / Drivetrain</h3>
+                for (const section of sections) {
+                    const hasData = section.fields.some(([, v]) => v !== "N/A");
+                    if (!hasData) continue;
+                    html += `<div class="result-section-heading">${section.heading}</div>`;
+                    html += `<div class="info-grid">`;
+                    for (const [label, value] of section.fields) {
+                        if (value === "N/A") continue;
+                        html += `
+                            <div class="info-card">
+                                <div class="info-label">${escapeHtml(label)}</div>
+                                <div class="info-value">${escapeHtml(value)}</div>
+                            </div>`;
+                    }
+                    html += `</div>`;
+                }
 
-    <p><strong>Engine:</strong> ${get("Engine Model")}</p>
-    <p><strong>Displacement:</strong> ${get("Displacement (L)")}L</p>
-    <p><strong>Cylinders:</strong> ${get("Engine Number of Cylinders")}</p>
-    <p><strong>Horsepower:</strong> ${get("Engine Brake (hp) From")} hp</p>
-    <p><strong>Fuel Type:</strong> ${get("Fuel Type - Primary")}</p>
-    <p><strong>Drive Type:</strong> ${get("Drive Type")}</p>
-    <p><strong>Transmission:</strong> ${get("Transmission Style")}</p>
-    <p><strong>Transmission Speeds:</strong> ${get("Transmission Speeds")}</p>
-
-    <hr>
-
-    <h3>Body / Chassis</h3>
-
-    <p><strong>Body Class:</strong> ${get("Body Class")}</p>
-    <p><strong>Doors:</strong> ${get("Doors")}</p>
-    <p><strong>Seats:</strong> ${get("Number of Seats")}</p>
-    <p><strong>Wheelbase:</strong> ${get("Wheel Base (inches) From")} in</p>
-    <p><strong>Wheel Size Front:</strong> ${get("Wheel Size Front (inches)")} in</p>
-    <p><strong>Wheel Size Rear:</strong> ${get("Wheel Size Rear (inches)")} in</p>
-
-    <hr>
-
-    <h3>Manufacturing</h3>
-
-    <p><strong>Manufacturer:</strong> ${get("Manufacturer Name")}</p>
-    <p><strong>Plant:</strong> 
-        ${get("Plant City")}, 
-        ${get("Plant State")}, 
-        ${get("Plant Country")}
-    </p>
-
-    <hr>
-
-    <h3>Useful Part-Out Data</h3>
-
-    <p><strong>VIN:</strong> ${vin}</p>
-    <p><strong>Vehicle Type:</strong> ${get("Vehicle Type")}</p>
-    <p><strong>GVWR:</strong> ${get("Gross Vehicle Weight Rating From")}</p>
-    <p><strong>ABS:</strong> ${get("Anti-lock Braking System (ABS)")}</p>
-    <p><strong>ESC:</strong> ${get("Electronic Stability Control (ESC)")}</p>
-    <p><strong>Backup Camera:</strong> ${get("Backup Camera")}</p>
-    <p><strong>TPMS:</strong> ${get("Tire Pressure Monitoring System (TPMS) Type")}</p>
-`;
+                resultDiv.innerHTML = html;
 
             } catch (err) {
-
                 console.error(err);
-
-                errorDiv.textContent =
-                    "Failed to fetch VIN data from NHTSA.";
+                errorDiv.textContent = "Failed to fetch VIN data from NHTSA.";
+                resultDiv.innerHTML = "";
             }
         }
 
-        // Prevent HTML injection
         function escapeHtml(text) {
-
             const div = document.createElement("div");
-
             div.textContent = text;
-
             return div.innerHTML;
         }
+
         function hardRefresh() {
             const url = new URL(window.location.href);
-
-            // Add a unique timestamp so browser never reuses cache
             url.searchParams.set("refresh", Date.now());
-
-            // Force reload from server
             window.location.href = url.toString();
         }
 
-        function resetScan() {
-            vinInput.value = "";
-            barcodeResult.textContent = "No barcode detected";
-            errorDiv.textContent = "";
-            resultDiv.innerHTML = "";
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+                navigator.serviceWorker.register("./serviceworker.js")
+                    .then(reg => console.log("SW registered:", reg.scope))
+                    .catch(err => console.error("SW failed:", err));
+            });
         }
 
-        Quagga.onDetected(onDetected);
-
-        if ("serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-
-        navigator.serviceWorker.register("/Scanner/VinScanner/service-worker.js")
-            .then(reg => {
-                console.log("SW registered:", reg.scope);
-            })
-            .catch(err => {
-                console.log("SW failed:", err);
-            });
-
-    });
-}
     </script>
 
 </body>
