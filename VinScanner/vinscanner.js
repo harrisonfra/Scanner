@@ -2,6 +2,7 @@
 // STATE
 // ================================================
 let scanning      = false;
+let scanMode      = null; // "barcode" | "ocr"
 let detectorBound = false;
 let lastVin       = "";
 let lastTime      = 0;
@@ -119,15 +120,17 @@ function onVinFound(vin, source) {
 // ================================================
 // BARCODE SCANNER (Quagga2)
 // ================================================
-document.getElementById("startBtn").addEventListener("click", startScanner);
+document.getElementById("startBtn").addEventListener("click", () => startScanner("barcode"));
+document.getElementById("ocrBtn").addEventListener("click", () => startScanner("ocr"));
 document.getElementById("stopBtn").addEventListener("click", stopScanner);
 document.getElementById("decodeBtn").addEventListener("click", decodeVIN);
 document.getElementById("refreshBtn").addEventListener("click", hardRefresh);
 
-function startScanner() {
+function startScanner(mode = "barcode") {
     if (scanning) return;
+    scanMode = mode;
     errorDiv.textContent = "";
-    barcodeResult.textContent = "Starting scanner…";
+    barcodeResult.textContent = "Starting camera…";
 
     Quagga.init({
         inputStream: {
@@ -143,21 +146,28 @@ function startScanner() {
             console.error(err);
             errorDiv.textContent = "Failed to access camera.";
             barcodeResult.textContent = "No barcode detected";
+            scanMode = null;
             return;
-        }
-        if (!detectorBound) {
-            Quagga.onDetected(onBarcodeDetected);
-            detectorBound = true;
         }
         Quagga.start();
         scanning = true;
-        barcodeResult.textContent = "Scanning for barcode and text…";
 
-        Tesseract.createWorker("eng").then(worker => {
-            if (!scanning) { worker.terminate(); return; }
-            ocrWorker   = worker;
-            ocrInterval = setInterval(runOcrFrame, 2000);
-        }).catch(e => console.error("OCR worker init failed:", e));
+        if (mode === "barcode") {
+            // Barcode only — bind detector, no OCR
+            if (!detectorBound) {
+                Quagga.onDetected(onBarcodeDetected);
+                detectorBound = true;
+            }
+            barcodeResult.textContent = "Scanning for barcode…";
+        } else {
+            // OCR only — no barcode detection
+            barcodeResult.textContent = "Scanning text (OCR)…";
+            Tesseract.createWorker("eng").then(worker => {
+                if (!scanning) { worker.terminate(); return; }
+                ocrWorker   = worker;
+                ocrInterval = setInterval(runOcrFrame, 2000);
+            }).catch(e => console.error("OCR worker init failed:", e));
+        }
     });
 }
 
@@ -183,6 +193,7 @@ function stopScanner() {
         video.srcObject = null;
     }
     detectorBound = false;
+    scanMode      = null;
 }
 
 function onBarcodeDetected(result) {
