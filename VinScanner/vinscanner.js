@@ -11,6 +11,7 @@ let lastTime      = 0;
 let ocrWorker   = null;
 let ocrInterval = null;
 let ocrBusy     = false;
+let mediaStream = null; // getUserMedia stream for OCR mode
 
 // Current decode — persisted for PDF export
 let currentVin            = "";
@@ -130,6 +131,13 @@ function startScanner(mode = "barcode") {
     if (scanning) return;
     scanMode = mode;
     errorDiv.textContent = "";
+    clearViewport();
+    if (mode === "barcode") startBarcodeMode();
+    else                    startOcrMode();
+}
+
+// ---- Barcode mode (Quagga2) ----
+function startBarcodeMode() {
     barcodeResult.textContent = "Starting camera…";
 
     Quagga.init({
@@ -149,51 +157,92 @@ function startScanner(mode = "barcode") {
             scanMode = null;
             return;
         }
+        if (!detectorBound) {
+            Quagga.onDetected(onBarcodeDetected);
+            detectorBound = true;
+        }
         Quagga.start();
         scanning = true;
-
-        if (mode === "barcode") {
-            // Barcode only — bind detector, no OCR
-            if (!detectorBound) {
-                Quagga.onDetected(onBarcodeDetected);
-                detectorBound = true;
-            }
-            barcodeResult.textContent = "Scanning for barcode…";
-        } else {
-            // OCR only — no barcode detection
-            barcodeResult.textContent = "Scanning text (OCR)…";
-            Tesseract.createWorker("eng").then(worker => {
-                if (!scanning) { worker.terminate(); return; }
-                ocrWorker   = worker;
-                ocrInterval = setInterval(runOcrFrame, 2000);
-            }).catch(e => console.error("OCR worker init failed:", e));
-        }
+        barcodeResult.textContent = "Scanning for barcode…";
     });
+}
+
+// ---- OCR mode (getUserMedia + Tesseract) ----
+async function startOcrMode() {
+    barcodeResult.textContent = "Starting camera…";
+    try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+
+        const viewport = document.querySelector("#interactive");
+        const video = document.createElement("video");
+        video.setAttribute("playsinline", "");
+        video.muted = true;
+        viewport.insertBefore(video, viewport.firstChild);
+        video.srcObject = mediaStream;
+        await video.play();
+
+        scanning = true;
+        barcodeResult.textContent = "Scanning for VIN from text…";
+
+        const worker = await Tesseract.createWorker("eng");
+        if (!scanning) { worker.terminate(); return; }
+        ocrWorker   = worker;
+        ocrInterval = setInterval(runOcrFrame, 2000);
+    } catch (e) {
+        console.error("OCR mode failed:", e);
+        errorDiv.textContent = "Failed to access camera.";
+        barcodeResult.textContent = "No barcode detected";
+        scanMode = null;
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(t => t.stop());
+            mediaStream = null;
+        }
+    }
+}
+
+// Remove any leftover video/canvas from the viewport (keeps .scan-box)
+function clearViewport() {
+    document.querySelectorAll("#interactive video, #interactive canvas").forEach(el => el.remove());
 }
 
 function stopScanner() {
     if (!scanning) return;
+    const wasMode = scanMode;
     scanning = false;
 
+    // Tear down OCR (if running)
     clearInterval(ocrInterval);
     ocrInterval = null;
-
     if (ocrWorker) {
         ocrWorker.terminate().catch(() => {});
         ocrWorker = null;
     }
     ocrBusy = false;
 
-    Quagga.offDetected(onBarcodeDetected);
-    Quagga.stop();
+    // Tear down barcode pipeline (if running)
+    if (wasMode === "barcode") {
+        Quagga.offDetected(onBarcodeDetected);
+        try { Quagga.stop(); } catch (e) {}
+        detectorBound = false;
+    }
 
+    // Stop the OCR camera stream
+    if (mediaStream) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+    }
+
+    // Stop any remaining stream attached to a video element
     const video = document.querySelector("#interactive video");
     if (video?.srcObject) {
         video.srcObject.getTracks().forEach(t => t.stop());
         video.srcObject = null;
     }
-    detectorBound = false;
-    scanMode      = null;
+
+    clearViewport();
+    scanMode = null;
 }
 
 function onBarcodeDetected(result) {
