@@ -11,7 +11,12 @@ function applyTheme(light) {
     localStorage.setItem("theme", light ? "light" : "dark");
 }
 
-applyTheme(true);
+// Respect the stored preference (default: light)
+applyTheme(localStorage.getItem("theme") !== "dark");
+
+document.getElementById("theme-btn").addEventListener("click", () => {
+    applyTheme(!document.body.classList.contains("light"));
+});
 
 /* =========================
    LOAD DATA
@@ -19,13 +24,17 @@ applyTheme(true);
 fetch("all_data.json")
     .then(res => res.text())
     .then(text => {
-        const data = JSON.parse(text.replace(/NaN/g, "null"));
+        // The data generator emits bare NaN (invalid JSON). Only replace NaN
+        // in value position (after : , or [) so strings containing "NaN" survive.
+        const data = JSON.parse(text.replace(/([:,[]\s*)NaN(?=\s*[,\]}])/g, "$1null"));
 
         allData = data.map(item => ({
             ...item,
             Make:  item.Make  || "",
             Model: item.Model || "",
-            _item: item._item || ""
+            // Current data has no _item field — the part name lives inside
+            // Query as a quoted phrase, e.g.: 2001 DODGE Durango "center console lid"
+            _item: item._item || (item.Query?.match(/"([^"]+)"/)?.[1] ?? "")
         }));
 
         createItemFilters();
@@ -44,7 +53,7 @@ function createItemFilters() {
 
     uniqueItems.forEach(item => {
         const label = document.createElement("label");
-        label.innerHTML = `<input type="checkbox" value="${item}"><span>${item}</span>`;
+        label.innerHTML = `<input type="checkbox" value="${escapeHtml(item)}"><span>${escapeHtml(item)}</span>`;
 
         const checkbox = label.querySelector("input");
         checkbox.addEventListener("change", () => {
@@ -87,7 +96,12 @@ function applyFilters() {
     applySort();
 }
 
-document.getElementById("search").addEventListener("input", applyFilters);
+// Debounced — each keystroke would otherwise re-render every card
+let searchDebounce;
+document.getElementById("search").addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(applyFilters, 200);
+});
 
 /* =========================
    SORT
@@ -140,24 +154,25 @@ function displayData(data) {
         return;
     }
 
+    const fragment = document.createDocumentFragment();
+
     data.forEach(item => {
         const card = document.createElement("div");
         card.className = "data-card";
 
-        const query = encodeURIComponent(item.Query);
-        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&LH_ItemCondition=4`;
+        const ebayURL = buildEbayURL(item);
 
         card.innerHTML = `
             <div class="card-top">
                 <div class="card-info">
-                    <div class="card-title">${item._item}</div>
+                    <div class="card-title">${escapeHtml(item._item)}</div>
                     <div class="card-sub">
-                        ${item.Year} ${item.Make} ${item.Model || ""}
-                        &nbsp;·&nbsp;<span class="card-vin">${item.VIN}</span>
+                        ${escapeHtml(item.Year)} ${escapeHtml(item.Make)} ${escapeHtml(item.Model || "")}
+                        &nbsp;·&nbsp;<span class="card-vin">${escapeHtml(item.VIN)}</span>
                     </div>
                 </div>
                 <div class="card-price">
-                    <div class="price-main">$${item["Average Price"]}</div>
+                    <div class="price-main">$${escapeHtml(item["Average Price"])}</div>
                     <div class="price-label">avg</div>
                 </div>
             </div>
@@ -165,11 +180,11 @@ function displayData(data) {
             <div class="card-meta">
                 <div>
                     <div class="meta-label">Median</div>
-                    <div class="meta-val">$${item["Median Price"]}</div>
+                    <div class="meta-val">$${escapeHtml(item["Median Price"])}</div>
                 </div>
                 <div>
                     <div class="meta-label">Sales</div>
-                    <div class="meta-val">${item["Number of Sales"]}</div>
+                    <div class="meta-val">${escapeHtml(item["Number of Sales"])}</div>
                 </div>
             </div>
             <div class="card-actions">
@@ -190,8 +205,10 @@ function displayData(data) {
 
         card.addEventListener("click", () => showDetails(item));
 
-        container.appendChild(card);
+        fragment.appendChild(card);
     });
+
+    container.appendChild(fragment);
 }
 
 /* =========================
@@ -220,6 +237,8 @@ document.getElementById("close-details-btn").addEventListener("click", closeDeta
 ========================= */
 let scannerOpen = false;
 let scanning = false;
+let pendingStart = false; // camera startup in flight — lets Stop cancel it
+let scanSession = 0;      // bumped on every start/stop; stale async startups abort
 let detectorBound = false;
 let lastVin = "";
 let lastTime = 0;
@@ -254,8 +273,10 @@ document.getElementById("scanner-stop-btn").addEventListener("click", stopScanne
 document.getElementById("scanner-decode-btn").addEventListener("click", decodeVIN);
 
 function startScanner() {
-    if (scanning) return;
+    if (scanning || pendingStart) return;
     scannerError.textContent = "";
+    const session = ++scanSession;
+    pendingStart = true;
 
     Quagga.init({
         inputStream: {
@@ -268,9 +289,15 @@ function startScanner() {
         decoder: { readers: ["code_39_reader", "code_128_reader"] },
         locate: false
     }, function (err) {
+        pendingStart = false;
         if (err) {
             console.error(err);
             scannerError.textContent = "Failed to access camera.";
+            return;
+        }
+        // User hit Stop (or closed the scanner) while the camera was starting
+        if (session !== scanSession) {
+            try { Quagga.stop(); } catch (e) {}
             return;
         }
         if (!detectorBound) {
@@ -283,15 +310,19 @@ function startScanner() {
 }
 
 function stopScanner() {
-    if (!scanning) return;
-    Quagga.offDetected(onDetected);
-    Quagga.stop();
+    if (!scanning && !pendingStart) return;
+    scanSession++;   // any in-flight camera startup sees a stale session and aborts
+    pendingStart = false;
+    if (scanning) {
+        Quagga.offDetected(onDetected);
+        try { Quagga.stop(); } catch (e) {}
+        detectorBound = false;
+    }
     const video = document.querySelector("#scanner-viewport video");
     if (video && video.srcObject) {
         video.srcObject.getTracks().forEach(t => t.stop());
         video.srcObject = null;
     }
-    detectorBound = false;
     scanning = false;
 }
 
@@ -428,8 +459,7 @@ function renderMatchesTable() {
     html += `<th>eBay</th></tr></thead><tbody>`;
 
     for (const item of sorted) {
-        const query = encodeURIComponent(item.Query);
-        const ebayURL = `https://www.ebay.com/sch/i.html?_nkw=${query}&LH_Sold=1&LH_Complete=1&LH_ItemCondition=4`;
+        const ebayURL = escapeHtml(buildEbayURL(item));
         html += `<tr>
             <td>${escapeHtml(item._item)}</td>
             <td>$${escapeHtml(String(item["Average Price"]))}</td>
@@ -455,10 +485,17 @@ function renderMatchesTable() {
     });
 }
 
+// Escapes quotes too, so output is safe in attribute values
 function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
+    return String(text ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+}
+
+// eBay sold-listings search URL; falls back to year/make/model/item when Query is missing
+function buildEbayURL(item) {
+    const queryText = item.Query || `${item.Year || ""} ${item.Make} ${item.Model || ""} ${item._item}`.trim();
+    return `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(queryText)}&LH_Sold=1&LH_Complete=1&LH_ItemCondition=4`;
 }
 
 /* =========================

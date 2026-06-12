@@ -1,4 +1,4 @@
-const CACHE_NAME = "vin-viewer-cache-v2";
+const CACHE_NAME = "vin-viewer-cache-v4";
 const STATIC_ASSETS = [
     "./",
     "./index.html",
@@ -6,7 +6,6 @@ const STATIC_ASSETS = [
     "./script.js",
     "./manifest.json",
     "./UAR.png",
-    // "./icons/icon-512.png"
 ];
 
 // Install: cache static assets
@@ -14,6 +13,7 @@ self.addEventListener("install", event => {
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
     );
+    self.skipWaiting();
 });
 
 // Activate: clean up old caches
@@ -25,38 +25,29 @@ self.addEventListener("activate", event => {
                     .filter(key => key !== CACHE_NAME)
                     .map(key => caches.delete(key))
             )
-        )
+        ).then(() => self.clients.claim())
     );
 });
 
-// Fetch: dynamic caching
+// Network-first: serve fresh, fall back to cache offline, keep cache updated
+function networkFirst(request) {
+    return fetch(request)
+        .then(response => {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+            return response;
+        })
+        .catch(() => caches.match(request));
+}
+
 self.addEventListener("fetch", event => {
     const request = event.request;
+    if (request.method !== "GET") return;
 
-    // Network-first for JSON (dynamic content)
-    if (request.url.endsWith("all_data.json")) {
-        event.respondWith(
-            fetch(request)
-                .then(response => {
-                    return caches.open(CACHE_NAME).then(cache => {
-                        cache.put(request, response.clone());
-                        return response;
-                    });
-                })
-                .catch(() => caches.match(request))
-        );
-        return;
-    }
+    // Cross-origin (NHTSA API, CDNs, eBay): never cache — APIs must stay live
+    if (new URL(request.url).origin !== self.location.origin) return;
 
-    // Cache-first for other assets
-    event.respondWith(
-        caches.match(request).then(cachedResponse => {
-            return cachedResponse || fetch(request).then(response => {
-                return caches.open(CACHE_NAME).then(cache => {
-                    cache.put(request, response.clone());
-                    return response;
-                });
-            });
-        })
-    );
+    // Network-first for everything same-origin (JS/CSS included) so deploys
+    // are picked up immediately; the cache is an offline fallback only.
+    event.respondWith(networkFirst(request));
 });

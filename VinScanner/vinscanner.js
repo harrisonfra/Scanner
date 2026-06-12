@@ -3,15 +3,21 @@
 // ================================================
 let scanning      = false;
 let scanMode      = null; // "barcode" | "ocr"
+let pendingStart  = false; // camera startup in flight — lets Stop cancel it
+let scanSession   = 0;     // bumped on every start/stop; stale async startups abort
 let detectorBound = false;
 let lastVin       = "";
 let lastTime      = 0;
 
+// Torch
+let torchOn = false;
+
 // OCR
-let ocrWorker   = null;
-let ocrInterval = null;
-let ocrBusy     = false;
-let mediaStream = null; // getUserMedia stream for OCR mode
+let ocrWorker        = null;
+let ocrInterval      = null;
+let ocrBusy          = false;
+let mediaStream      = null; // getUserMedia stream for OCR mode
+let lastOcrCandidate = "";   // checksum-invalid match awaiting 2nd-frame confirmation
 
 // Current decode — persisted for PDF export
 let currentVin            = "";
@@ -103,6 +109,113 @@ document.getElementById("clearHistoryBtn").addEventListener("click", () => {
 });
 
 // ================================================
+// VIN CHECK DIGIT (ISO 3779, position 9)
+// ================================================
+const VIN_CHAR_VALUES = {
+    A:1, B:2, C:3, D:4, E:5, F:6, G:7, H:8,
+    J:1, K:2, L:3, M:4, N:5, P:7, R:9,
+    S:2, T:3, U:4, V:5, W:6, X:7, Y:8, Z:9
+};
+const VIN_WEIGHTS = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+
+function vinCheckDigitValid(vin) {
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) return false;
+    let sum = 0;
+    for (let i = 0; i < 17; i++) {
+        const c = vin[i];
+        const v = c >= "0" && c <= "9" ? Number(c) : VIN_CHAR_VALUES[c];
+        sum += v * VIN_WEIGHTS[i];
+    }
+    const rem = sum % 11;
+    return vin[8] === (rem === 10 ? "X" : String(rem));
+}
+
+// OCR misreads: characters Tesseract commonly confuses. I/O/Q are invalid in
+// VINs so they're always mapped; the rest are tried one position at a time
+// against the check digit.
+const OCR_SWAPS = { S:"5", "5":"S", B:"8", "8":"B", Z:"2", "2":"Z", G:"6", "6":"G", D:"0", "0":"D" };
+
+// Find a checksum-valid VIN in raw OCR text, trying misread corrections.
+// I/O/Q never appear in real VINs, so mapping them (I→1, O→0, Q→0) is always
+// safe. Every overlapping 17-char window is checked unmodified BEFORE any
+// swap correction — a swapped wrong window can pass the checksum by chance
+// (1-in-11) and must never shadow a literal valid VIN elsewhere in the text.
+// Only a literal checksum pass is "certain"; swap-corrected and checksum-less
+// results require the same read on two consecutive frames (caller enforces).
+// ISO 3779 requires the last 4 characters to be numeric — used to filter junk.
+function findValidVinInText(raw) {
+    const cleaned = raw.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+    const mapped  = cleaned.replace(/I/g, "1").replace(/[OQ]/g, "0");
+
+    const windows   = []; // swap-correction sources (misread may sit in the last 4)
+    const plausible = []; // structurally valid: charset ok and ends in 4 digits
+    for (let i = 0; i + 17 <= mapped.length; i++) {
+        const win = mapped.slice(i, i + 17);
+        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(win)) continue;
+        if (/\d{4}$/.test(win)) {
+            if (vinCheckDigitValid(win)) return { vin: win, certain: true };
+            plausible.push(win);
+        }
+        windows.push(win);
+    }
+
+    // Single-character misread corrections, only if no literal window validated
+    for (const win of windows) {
+        for (let p = 0; p < 17; p++) {
+            const alt = OCR_SWAPS[win[p]];
+            if (!alt) continue;
+            const cand = win.slice(0, p) + alt + win.slice(p + 1);
+            if (/\d{4}$/.test(cand) && vinCheckDigitValid(cand)) {
+                return { vin: cand, certain: false };
+            }
+        }
+    }
+
+    // Checksum-invalid but structurally plausible (some non-NA VINs skip the
+    // check digit)
+    if (plausible.length) return { vin: plausible[0], certain: false };
+
+    return null;
+}
+
+// ================================================
+// TORCH / FLASHLIGHT
+// ================================================
+const torchBtn = document.getElementById("torchBtn");
+
+function getActiveVideoTrack() {
+    if (mediaStream) return mediaStream.getVideoTracks()[0] || null;
+    const video = document.querySelector("#interactive video");
+    return video?.srcObject?.getVideoTracks?.()[0] || null;
+}
+
+function updateTorchButton() {
+    const track = getActiveVideoTrack();
+    const supported = !!track?.getCapabilities?.().torch;
+    torchOn = false;
+    torchBtn.textContent = "🔦";
+    torchBtn.classList.toggle("hidden", !supported);
+}
+
+function hideTorchButton() {
+    torchOn = false;
+    torchBtn.textContent = "🔦";
+    torchBtn.classList.add("hidden");
+}
+
+torchBtn.addEventListener("click", async () => {
+    const track = getActiveVideoTrack();
+    if (!track) return;
+    try {
+        await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
+        torchOn = !torchOn;
+        torchBtn.textContent = torchOn ? "🔦 On" : "🔦";
+    } catch (e) {
+        console.error("Torch toggle failed:", e);
+    }
+});
+
+// ================================================
 // SHARED VIN HANDLER
 // ================================================
 function onVinFound(vin, source) {
@@ -128,7 +241,7 @@ document.getElementById("decodeBtn").addEventListener("click", decodeVIN);
 document.getElementById("refreshBtn").addEventListener("click", hardRefresh);
 
 function startScanner(mode = "barcode") {
-    if (scanning) return;
+    if (scanning || pendingStart) return;
     scanMode = mode;
     errorDiv.textContent = "";
     clearViewport();
@@ -139,6 +252,8 @@ function startScanner(mode = "barcode") {
 // ---- Barcode mode (Quagga2) ----
 function startBarcodeMode() {
     barcodeResult.textContent = "Starting camera…";
+    const session = ++scanSession;
+    pendingStart  = true;
 
     Quagga.init({
         inputStream: {
@@ -150,11 +265,18 @@ function startBarcodeMode() {
         decoder:  { readers: ["code_39_reader", "code_128_reader"] },
         locate:   false
     }, function(err) {
+        pendingStart = false;
         if (err) {
             console.error(err);
             errorDiv.textContent = "Failed to access camera.";
             barcodeResult.textContent = "No barcode detected";
             scanMode = null;
+            return;
+        }
+        // User hit Stop while the camera was starting — release it and bail
+        if (session !== scanSession) {
+            try { Quagga.stop(); } catch (e) {}
+            clearViewport();
             return;
         }
         if (!detectorBound) {
@@ -164,16 +286,26 @@ function startBarcodeMode() {
         Quagga.start();
         scanning = true;
         barcodeResult.textContent = "Scanning for barcode…";
+        updateTorchButton();
     });
 }
 
 // ---- OCR mode (getUserMedia + Tesseract) ----
 async function startOcrMode() {
     barcodeResult.textContent = "Starting camera…";
+    const session = ++scanSession;
+    pendingStart  = true;
+    let stream    = null;
     try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
+        stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
         });
+        if (session !== scanSession) { // stopped during startup
+            stream.getTracks().forEach(t => t.stop());
+            pendingStart = false;
+            return;
+        }
+        mediaStream = stream;
 
         const viewport = document.querySelector("#interactive");
         const video = document.createElement("video");
@@ -183,22 +315,26 @@ async function startOcrMode() {
         video.srcObject = mediaStream;
         await video.play();
 
-        scanning = true;
+        if (session !== scanSession) { pendingStart = false; return; }
+
+        pendingStart     = false;
+        scanning         = true;
+        lastOcrCandidate = "";
         barcodeResult.textContent = "Scanning for VIN from text…";
+        updateTorchButton();
 
         const worker = await Tesseract.createWorker("eng");
-        if (!scanning) { worker.terminate(); return; }
+        if (!scanning || session !== scanSession) { worker.terminate(); return; }
         ocrWorker   = worker;
         ocrInterval = setInterval(runOcrFrame, 2000);
     } catch (e) {
         console.error("OCR mode failed:", e);
+        pendingStart = false;
         errorDiv.textContent = "Failed to access camera.";
         barcodeResult.textContent = "No barcode detected";
         scanMode = null;
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(t => t.stop());
-            mediaStream = null;
-        }
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (mediaStream === stream) mediaStream = null;
     }
 }
 
@@ -208,9 +344,12 @@ function clearViewport() {
 }
 
 function stopScanner() {
-    if (!scanning) return;
+    if (!scanning && !pendingStart) return;
     const wasMode = scanMode;
+    scanSession++;        // any in-flight camera startup sees a stale session and aborts
+    pendingStart = false;
     scanning = false;
+    hideTorchButton();
 
     // Tear down OCR (if running)
     clearInterval(ocrInterval);
@@ -249,6 +388,8 @@ function onBarcodeDetected(result) {
     const cleaned  = result.codeResult.code.replace(/[^A-Z0-9]/gi, "").toUpperCase();
     const vinMatch = cleaned.match(/[A-HJ-NPR-Z0-9]{17}/);
     if (!vinMatch) { barcodeResult.textContent = `Scanned: ${cleaned}`; return; }
+    // Barcode reads are reliable — accept even if the check digit fails
+    // (decodeVIN surfaces a warning); checksum failures on non-NA VINs are normal.
     onVinFound(vinMatch[0], "Barcode");
 }
 
@@ -271,9 +412,19 @@ async function runOcrFrame() {
         );
         const { data: { text } } = await ocrWorker.recognize(canvas);
         if (!scanning) { ocrBusy = false; return; }
-        const cleaned  = text.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-        const vinMatch = cleaned.match(/[A-HJ-NPR-Z0-9]{17}/);
-        if (vinMatch) onVinFound(vinMatch[0], "OCR");
+        const found = findValidVinInText(text);
+        if (found) {
+            if (found.certain) {
+                onVinFound(found.vin, "OCR");
+            } else if (found.vin === lastOcrCandidate) {
+                // Checksum-invalid but read identically on two consecutive
+                // frames — likely a real (non-North-American) VIN
+                onVinFound(found.vin, "OCR");
+            } else {
+                lastOcrCandidate = found.vin;
+                barcodeResult.textContent = `Possible VIN: ${found.vin} — confirming…`;
+            }
+        }
     } catch(e) { console.error("OCR frame error:", e); }
     ocrBusy = false;
 }
@@ -294,6 +445,9 @@ async function decodeVIN() {
         errorDiv.textContent = "Invalid VIN — cannot contain I, O, or Q.";
         return;
     }
+
+    // Warn but proceed — non-North-American VINs don't always use the check digit
+    const checkDigitOk = vinCheckDigitValid(vin);
 
     resultDiv.innerHTML = `<p class="loading">Decoding VIN…</p>`;
 
@@ -364,7 +518,11 @@ async function decodeVIN() {
 
         const imagePromise = fetchVehicleImage(currentMake, currentModel, currentYear);
 
+        const partsSearch = `${currentYear} ${currentMake} ${currentModel}`
+            .split(" ").filter(p => p && p !== "N/A").join(" ");
+
         let html = `
+            ${checkDigitOk ? "" : `<div class="checksum-warning">⚠ VIN check digit doesn't validate — double-check for misread characters.</div>`}
             <div class="result-header">
                 <div id="vehicle-image-wrap" class="vehicle-image-wrap">
                     <div class="image-placeholder">Loading image…</div>
@@ -372,8 +530,13 @@ async function decodeVIN() {
                 <div class="result-hero">
                     <div class="result-year-make">${escapeHtml(currentYear)} ${escapeHtml(currentMake)} ${escapeHtml(currentModel)}</div>
                     <div class="result-vin">${escapeHtml(vin)}</div>
+                    <div class="result-actions">
+                        <button id="copyVinBtn" class="action-btn">Copy VIN</button>
+                        <button id="shareBtn" class="action-btn hidden">Share</button>
+                        <a id="partsLink" class="action-btn" href="../index.html?search=${encodeURIComponent(partsSearch)}">Find Part Prices</a>
+                    </div>
                 </div>
-                <button id="recallBtn" class="recall-btn">⚠ Check Recalls</button>
+                <button id="recallBtn" class="recall-btn">⚠ Check Recalls (model year)</button>
             </div>
             <div id="recall-section" class="recall-section hidden"></div>
         `;
@@ -396,8 +559,39 @@ async function decodeVIN() {
 
         resultDiv.innerHTML = html;
 
-        document.getElementById("recallBtn").addEventListener("click", () => checkRecalls(currentMake, currentModel, currentYear));
+        // Recall button: fetch on first click, toggle visibility after that
+        document.getElementById("recallBtn").addEventListener("click", () => {
+            if (currentRecalls === null) {
+                checkRecalls(currentMake, currentModel, currentYear);
+            } else {
+                document.getElementById("recall-section").classList.toggle("hidden");
+            }
+        });
         document.getElementById("export-btn").addEventListener("click", exportPDF);
+
+        // Copy VIN
+        const copyBtn = document.getElementById("copyVinBtn");
+        copyBtn.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(vin);
+                copyBtn.textContent = "Copied!";
+                setTimeout(() => { copyBtn.textContent = "Copy VIN"; }, 1500);
+            } catch (e) {
+                console.error("Clipboard failed:", e);
+            }
+        });
+
+        // Web Share (mobile) — hidden where unsupported
+        const shareBtn = document.getElementById("shareBtn");
+        if (navigator.share) {
+            shareBtn.classList.remove("hidden");
+            shareBtn.addEventListener("click", () => {
+                navigator.share({
+                    title: `${currentYear} ${currentMake} ${currentModel}`,
+                    text: `${currentYear} ${currentMake} ${currentModel} — VIN: ${vin}`
+                }).catch(() => {});
+            });
+        }
 
         // Resolve image
         currentImageUrl     = null;
@@ -659,13 +853,17 @@ async function checkRecalls(make, model, year) {
         const recalls = (await res.json()).results || [];
 
         currentRecalls  = recalls; // store for PDF
-        btn.textContent = `⚠ ${recalls.length} Recall${recalls.length !== 1 ? "s" : ""} Found`;
+        // Re-enable: from here on the button toggles the section open/closed
+        btn.disabled    = false;
+        btn.textContent = `⚠ ${recalls.length} Recall${recalls.length !== 1 ? "s" : ""} for this Model Year`;
 
         if (recalls.length === 0) {
-            section.innerHTML = `<div class="recall-none">✓ No open recalls found for this vehicle.</div>`;
+            section.innerHTML = `<div class="recall-none">✓ No recalls found for this model year.</div>`;
             return;
         }
-        section.innerHTML = recalls.map(r => `
+        // Recalls are matched by make/model/year — individual recalls may only
+        // apply to certain VIN/build-date ranges within that model year.
+        section.innerHTML = `<p class="recall-note">Recalls listed for this make, model, and year — not all may apply to this specific VIN.</p>` + recalls.map(r => `
             <div class="recall-card">
                 <div class="recall-top">
                     <span class="recall-campaign">${escapeHtml(r.NHTSACampaignNumber || "")}</span>
@@ -680,7 +878,7 @@ async function checkRecalls(make, model, year) {
     } catch(err) {
         console.error(err);
         section.innerHTML = `<p class="recall-error">Failed to load recall data. Try again.</p>`;
-        btn.textContent   = "⚠ Check Recalls";
+        btn.textContent   = "⚠ Check Recalls (model year)";
         btn.disabled      = false;
     }
 }
@@ -757,11 +955,20 @@ async function exportPDF() {
                 doc.setTextColor(...COL_GRAY);
                 doc.text(label.toUpperCase(), x + 3, rowY + 5);
 
-                doc.setFontSize(9);
                 doc.setFont("helvetica", "normal");
                 doc.setTextColor(...COL_BLACK);
-                const lines = doc.splitTextToSize(String(value), colW - 6);
-                doc.text(lines[0], x + 3, rowY + 11);
+                // Shrink font to fit the card width (min 6pt), ellipsize as last resort
+                let text = String(value);
+                let size = 9;
+                doc.setFontSize(size);
+                while (doc.getTextWidth(text) > colW - 6 && size > 6) {
+                    size -= 0.5;
+                    doc.setFontSize(size);
+                }
+                while (doc.getTextWidth(text) > colW - 6 && text.length > 2) {
+                    text = text.slice(0, -2) + "…";
+                }
+                doc.text(text, x + 3, rowY + 11);
 
                 if (col === 1) { y = rowY + 18; col = 0; }
                 else           { col = 1; }
@@ -830,7 +1037,7 @@ async function exportPDF() {
         }
 
         checkPage(20);
-        sectionHeading("NHTSA Recalls");
+        sectionHeading("NHTSA Recalls (Model Year)");
 
         if (recalls === null) {
             doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...COL_GRAY);
@@ -843,7 +1050,8 @@ async function exportPDF() {
             doc.setLineWidth(0.4);
             doc.roundedRect(margin, y, cw, 10, 1.5, 1.5, "FD");
             doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...COL_GREEN);
-            doc.text("✓ No open recalls found for this vehicle.", margin + 4, y + 7);
+            // No "✓" — glyph isn't in jsPDF's built-in helvetica encoding
+            doc.text("No recalls found for this model year.", margin + 4, y + 7);
             y += 14;
 
         } else {
@@ -899,10 +1107,11 @@ function blobToBase64(blob) {
 // ================================================
 // HELPERS
 // ================================================
+// Escapes quotes too, so output is safe in attribute values (e.g. data-vin="…")
 function escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = String(text);
-    return div.innerHTML;
+    return String(text ?? "").replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
 }
 
 function hardRefresh() {
