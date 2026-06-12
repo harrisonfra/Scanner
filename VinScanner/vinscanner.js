@@ -35,6 +35,21 @@ const barcodeResult = document.getElementById("barcode-result");
 const vinCounter    = document.getElementById("vin-counter");
 
 // ================================================
+// THEME — shares the "theme" key with the VIN Viewer
+// (default light when unset, matching the viewer)
+// ================================================
+function applyTheme(light) {
+    document.body.classList.toggle("light", light);
+    localStorage.setItem("theme", light ? "light" : "dark");
+}
+
+applyTheme(localStorage.getItem("theme") !== "dark");
+
+document.getElementById("themeBtn").addEventListener("click", () => {
+    applyTheme(!document.body.classList.contains("light"));
+});
+
+// ================================================
 // VIN COUNTER
 // ================================================
 vinInput.addEventListener("input", () => {
